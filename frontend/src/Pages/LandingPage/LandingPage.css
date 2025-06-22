@@ -1,0 +1,89 @@
+.landing-heading {
+  padding: 0 !important;
+  color: var(--main-orange);
+
+  .village-map-btn {
+    color: var(--main-orange);
+    border: 1.5px solid var(--main-orange);
+    width: 30%;
+    background-color: transparent;
+    font-weight: 500;
+  }
+}
+
+.landing-container {
+  .left-side {
+    .current-village {
+      height: 70vh;
+      width: 100%;
+      border: 3px solid var(--main-orange);
+      border-radius: 10px;
+    }
+    p {
+      font-size: 140%;
+      span {
+        font-weight: bolder;
+      }
+    }
+  }
+
+  .right-side {
+    .buy-element-div {
+      border-radius: 5px;
+      background-color: var(--light-orange);
+    }
+    .next-element {
+      height: 20vh !important;
+    }
+    .river {
+      height: 10vh !important;
+      width: 15vw !important;
+      margin: 5% 0;
+    }
+    .shell {
+      height: 7vh;
+    }
+    .for {
+      letter-spacing: 0.2em;
+      font-weight: 500;
+    }
+    .points {
+      font-weight: bold;
+      color: var(--main-orange);
+      font-size: 140%;
+      align-content: center;
+    }
+    .buy-btn {
+      background-color: var(--main-orange);
+      font-weight: bold;
+      font-size: larger;
+      letter-spacing: 0.2em;
+      color: white;
+      border: none;
+      width: 70%;
+    }
+    .next-village {
+      height: 35vh;
+      width: 75%;
+      border: 1px solid var(--main-orange);
+      border-radius: 5px;
+    }
+  }
+}
+
+.modal-90w {
+  min-width: 65% !important;
+  align-items: center;
+}
+
+.village-map-modal {
+  .modal-title {
+    color: var(--main-orange);
+    font-weight: 700;
+  }
+
+  img {
+    object-fit: contain;
+    object-position: top;
+  }
+}

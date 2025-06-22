@@ -1,0 +1,231 @@
+.dropdown-main{
+    button{
+        background-color: white;
+        color: black;
+        border: 2px solid rgba(203, 94, 33, 1);
+        border-radius: 12px 0 0 12px !important;
+        position: relative;
+        font-weight: 800 !important;
+        padding: 4px 13px !important;
+    }
+    &:hover, &:focus, &:active
+    {
+        button{
+            background-color: rgba(203, 94, 33, 1);
+            color: white;
+        }
+    }
+}
+
+.search-container {
+    position: relative;
+}
+.search-container input{
+    padding: 3px 20px 3px 38px;
+    border: 2px solid rgba(203, 94, 33, 1);
+    border-radius: 50px;
+    width: 80%;
+}
+.search-container input:focus-visible{
+    outline: none;
+}
+.search-container input::placeholder{
+    color: black;
+}
+.search_icon {
+    position: absolute;
+    height: 22px;
+    top: 5.45px;
+    left: 35px;
+}
+.header-right-container {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+}
+
+.web-container {
+    max-width: 1440px;
+    margin: 0 auto !important;
+    width: 100%;
+}
+.answer-posting {
+    padding-top: 79px;
+    display: flex;
+    gap: 120px;
+    align-items: center;
+    margin-bottom: 113px;
+}
+.answer-posting button{
+    padding: 8px 29px;
+    background-color: #FFEFE0;
+    border: 2px solid #CB5E21;
+    height: fit-content;
+    font-weight: 700;
+}
+.answer-posting textarea{
+    padding: 12px;
+    background-color: #D9D9D9;
+    width: 100%;
+    max-width: 860px;
+    border: 1px solid black;
+    font-size: 20px;
+}
+.comment-section {
+    display: flex;
+    gap: 5px;
+    padding-bottom: 50px;
+}
+.comment-text {
+    font-size: 20px;
+    padding-top: 30px;
+    text-align: left;
+}
+.comment-header {
+    padding-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    font-size: 25px;
+}
+.header-date {
+    color: #8B3B0E;
+    padding-left: 15px;
+}
+.comment-header .reactions {
+    display: flex;
+    gap: 0;
+}
+.comment-header .reactions button{
+    border: none;
+    background: white;
+    width: min-content;
+    padding: 0;
+}
+.comment-header .reactions button img{
+    height: 40px;
+}
+.comment-header .reactions button img:hover{
+    scale: 1.2;
+}
+
+.question-header-right {
+    display: flex;
+    gap: 60px;
+}
+.question-topic {
+    display: flex;
+    gap: 5px;
+    font-size: 32px;
+}
+.question-topic span{
+    color: #CB5E21;
+    font-weight: 700;
+}
+.answer-posting-day button{
+    background-color: #CB5E21F5 !important;
+    border: none !important;
+    box-shadow: 0 4px 4px #00000040;
+}
+.answer-container {
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+    text-align: left;
+    padding-top: 60px;
+    margin-bottom: 60px;
+}
+.answer-container .ans-sec h1{
+    font-size: 24px;
+    font-weight: 800;
+    color: #CB5E21;
+    padding-bottom: 15px;
+}
+.answer-container .ans-sec span{
+    font-size: 20px;
+    text-align: left;
+}
+
+.post-que-modal-head {
+    display: flex;
+    gap: 30px;
+    position: relative;
+}
+.post-que-modal-head img {
+    position: absolute;
+    top: -8px;
+}
+.post-que-modal-head span{
+    padding-left: 60px !important;
+}
+.post-que-form {
+    padding: 40px 140px 40px 70px;
+    display: flex;
+    flex-direction: column;
+    gap: 31px;
+}
+.form-field-sec {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    text-align: left;
+}
+.form-field-sec span{
+    font-size: 25px;
+    font-weight: 600;
+}
+.form-field-sec input{
+    padding: 18px 24px;
+    background-color: #D9D9D9;
+    font-size: 20px;
+    font-weight: 300;
+    border: none;
+}
+.form-field-sec input:focus-visible{
+    outline: none;
+}
+.form-submit-btn {
+   font-size: 15px; 
+   background: #FFEFE0;
+   border: 2px solid #CB5E21;
+   padding: 7px 42px;
+   width: min-content;
+   font-weight: 700;
+   margin-bottom: 30px;
+   border-radius: 0 !important;
+   align-self: flex-end;
+   margin-right: 90px;
+}
+
+
+.upvote-downvote-sec{
+    display: flex;
+}
+.upvote-downvote-sec .upvote{
+    font-size: 15px;
+    font-weight: 400;
+    border-radius: 30px 0 0 30px !important;
+    border: 2px solid #8B3B0E;
+    padding: 2px 4px;
+    display: flex;
+    background: none;
+}
+.upvote-downvote-sec .upvote img{
+    height: 20px;
+    transform: rotate(90deg);
+}
+.upvote-downvote-sec .downvote img{
+    height: 20px;
+    transform: rotate(270deg);
+}
+.upvote-downvote-sec .downvote{
+    font-size: 15px;
+    font-weight: 400;
+    border-radius: 0 30px 30px 0 !important;
+    border: 2px solid #8B3B0E;
+    border-left: none !important;
+    padding: 2px 4px;
+    display: flex;
+    background: none;
+}

@@ -1,0 +1,40 @@
+.current-month-text {
+    font-size: 36px;
+    font-weight: 800;
+}
+.carousal-month {
+    display: flex;
+    gap: 21px;
+    justify-content: center;
+}
+.carousal-day {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 52px;
+    margin-bottom: 46px;
+}
+.carousal-month button, .carousal-day button{
+    background-color: transparent !important;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+.current-day-text {
+    display: flex;
+    flex-direction: column;
+    font-size: 24px;
+    font-weight: 800;
+    padding: 10px 25px;
+    line-height: 32px;
+    cursor: pointer;
+}
+.day-active {
+    border-radius: 10px;
+    background: #CB5E21A8;
+}
+.day-extra-text {
+    font-size: 16px;
+    padding: 45px 270px;
+    border: 2px solid #CB5E21;
+    min-height: 242px;
+}

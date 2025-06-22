@@ -1,0 +1,45 @@
+.navbar {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  background-color: var(--green) !important;
+}
+
+.eLearningLogo {
+  height: 55px;
+  width: auto;
+}
+
+.options {
+  height: 45px;
+  width: auto;
+}
+
+.options.shell {
+  height: 30px !important;
+}
+
+.header {
+
+  .dropdown-menu.show {
+    background-color: var(--light-orange) !important;
+    border: 3px solid var(--brown) !important;
+  
+    .dropdown-item {
+      color: var(--brown);
+      font-weight: 500;
+    }
+  }
+  }
+
+.points {
+  font-weight: bolder;
+  font-size: 125%;
+  color: white;
+}
+
+.points-title {
+  font-size: 70%;
+  color: white;
+  letter-spacing: 0.2em;
+  align-content: center;
+}

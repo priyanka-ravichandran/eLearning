@@ -1,0 +1,59 @@
+.login-container {
+  padding: 0 !important;
+
+  .row {
+    background-color: var(--light-pink);
+    padding: 0;
+    margin: 0;
+  }
+
+  .container-fluid {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .left-col {
+    height: 100vh;
+    padding: 10px;
+  }
+
+  .register-form {
+    padding: 10px 40px;
+    text-align: left;
+    color: var(--main-orange);
+    align-self: center;
+  }
+
+  .form {
+    font-weight: 500;
+
+    .form-label {
+      margin: 2px;
+    }
+  }
+
+  .right-col {
+    height: 100vh;
+    padding: 20px 50px !important;
+  }
+
+  .right-container {
+    background-color: var(--main-orange);
+    height: 100%;
+    border-radius: 3%;
+    align-items: center;
+  }
+
+  .redirect {
+    font-weight: bold;
+    color: black;
+
+    span {
+      color: var(--main-orange);
+    }
+  }
+
+  .logo {
+    height: 100px;
+  }
+}
