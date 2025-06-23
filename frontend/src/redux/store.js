@@ -1,23 +1,19 @@
 // store.js
-
 import { configureStore } from "@reduxjs/toolkit";
 import { createUserApi } from "./api/createUserApi";
-import userSlice from "./userSlice";
 import { groupsApi } from "./api/groupsApi";
 import { questionsApi } from "./api/questionsApi";
 import { studentsApi } from "./api/studentsApi";
-import { persistStore, persistReducer } from 'redux-persist';
-import storage from 'redux-persist/lib/storage'; // defaults to localStorage for web
-
-//CustomMiddleware
+import userSlice from "./userSlice";
+import { persistStore, persistReducer } from "redux-persist";
+import storage from "redux-persist/lib/storage";
 
 const persistConfig = {
-  key: 'root',
+  key: "root",
   storage,
 };
 
 const persistedReducer = persistReducer(persistConfig, userSlice);
-
 
 const store = configureStore({
   reducer: {
@@ -27,18 +23,17 @@ const store = configureStore({
     [questionsApi.reducerPath]: questionsApi.reducer,
     user: persistedReducer,
   },
-  middleware: (getDefaultMiddleware) => {
-    return getDefaultMiddleware().concat(
-      ...getDefaultMiddleware(),
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,   // optional: silence redux-persist warnings
+    }).concat(
       createUserApi.middleware,
       groupsApi.middleware,
       studentsApi.middleware,
       questionsApi.middleware
-      // logger
-    );
-  },
+      // logger   ←- add here only once if you need it
+    ),
 });
-export const  persistor = persistStore(store);
 
-
+export const persistor = persistStore(store);
 export default store;

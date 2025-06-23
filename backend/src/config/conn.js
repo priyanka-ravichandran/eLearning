@@ -2,8 +2,7 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 
 const dbConnectionString =
-  'mongodb+srv://admin:admin123@elearning.76hcjzy.mongodb.net/?retryWrites=true&w=majority&appName=eLearning'
-
+  'mongodb+srv://eLearning:Y1fVPMsdF6wBkpnv@cluster0.4rgqovz.mongodb.net/eLearningDb?retryWrites=true&w=majority&authSource=admin'
 
 mongoose
     .connect(dbConnectionString)

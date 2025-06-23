@@ -2,9 +2,19 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-//Group Schema
+// Group Schema
 var GroupSchema = new Schema(
   {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     group_no: {
       type: Number,
       required: true,

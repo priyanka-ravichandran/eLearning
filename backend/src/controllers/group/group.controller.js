@@ -4,66 +4,48 @@ const { response } = require("../../utils/response");
 const groupRepository = require("../../repository/group.repository");
 const { Message } = require("../../utils/Message");
 
-// Get student Details
+// Get group details
 const getGroupDetails = async (req, res) => {
-  const { group_id } = req.body;
-
   try {
-    const group = await groupRepository.findById(group_id);
-    if (!group) {
-      return response(
-        res,
-        StatusCodes.NOT_FOUND,
-        false,
-        {},
-        Message.USER.NOT_FOUND
-      );
-    }
-
-    return response(res, StatusCodes.OK, true, { group: group }, null);
+    const { group_id } = req.body;
+    const group = await Group.findById(group_id).populate("team_members");
+    if (!group) return response(res, 404, false, {}, "Group not found");
+    return response(res, 200, true, { group }, "Group details fetched");
   } catch (error) {
-    console.log(error.message);
-    return response(
-      res,
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      false,
-      {},
-      error.message
-    );
+    return response(res, 500, false, {}, error.message);
   }
 };
 
-// create group
+// Create group
 const create_group = async (req, res) => {
   try {
-    const { student_id_1, student_id_2, student_id_3 } = req.body;
-
-    try {
-      await groupRepository.create_group(
-        student_id_1,
-        student_id_2,
-        student_id_3
-      );
-
-      return response(res, StatusCodes.OK, true, null);
-    } catch (error) {
-      return response(
-        res,
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        false,
-        {},
-        error.message
-      );
-    }
+    const { name, student_id_1, student_id_2, student_id_3 } = req.body;
+    const group = await groupRepository.create_group(name, student_id_1, student_id_2, student_id_3);
+    return response(res, 201, true, { group }, "Group created successfully");
   } catch (error) {
-    console.log(error.message);
-    return response(
-      res,
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      false,
-      {},
-      error.message
-    );
+    return response(res, 500, false, {}, error.message);
+  }
+};
+
+// Join group
+const join_group = async (req, res) => {
+  try {
+    const { code, student_id } = req.body;
+    const group = await groupRepository.join_group(code, student_id);
+    return response(res, 200, true, { group }, "Joined group successfully");
+  } catch (error) {
+    return response(res, 400, false, {}, error.message);
+  }
+};
+
+// Exit group
+const exit_group = async (req, res) => {
+  try {
+    const { group_id, student_id } = req.body;
+    await groupRepository.exit_group(group_id, student_id);
+    return response(res, 200, true, {}, "Exited group successfully");
+  } catch (error) {
+    return response(res, 400, false, {}, error.message);
   }
 };
 
@@ -213,9 +195,11 @@ const get_group_leaderboard = async (req, res) => {
 
 module.exports = {
   getGroupDetails,
+  create_group,
+  join_group,
+  exit_group,
   updateVillageLevel,
   update_group_points,
   get_group_achievements,
   get_group_leaderboard,
-  create_group,
 };

@@ -18,10 +18,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 if (process.env.NODE_ENV === "production") {
-  // Production logger format
   app.use(morgan("combined"));
 } else {
-  // Development logger format
   app.use(morgan("dev"));
 }
 
@@ -37,8 +35,23 @@ app.use("/question", questionRouter);
 app.use("/student_question", studentQuestion);
 app.use("/group", groupRouter);
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "/src/view/serverRunning.html"));
+// Serve React build static files
+app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+// Serve React app for any unknown route (except API and uploads)
+app.get("*", (req, res) => {
+  // If the request is for an API or uploads, skip
+  if (
+    req.path.startsWith("/auth") ||
+    req.path.startsWith("/student") ||
+    req.path.startsWith("/question") ||
+    req.path.startsWith("/student_question") ||
+    req.path.startsWith("/group") ||
+    req.path.startsWith("/uploads")
+  ) {
+    return res.status(404).send("Not Found");
+  }
+  res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
 });
 
 var port = process.env.PORT || 3000;

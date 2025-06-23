@@ -5,6 +5,27 @@ const findById = async (id) => {
   return Group.findById(id);
 };
 
+const generateGroupCode = () =>
+  Math.random().toString(36).substring(2, 8).toUpperCase();
+
+const create_group = async (name, student_id_1, student_id_2, student_id_3) => {
+  // Find the highest group_no and increment
+  const lastGroup = await Group.findOne().sort({ group_no: -1 });
+  const newGroupNo = lastGroup ? lastGroup.group_no + 1 : 1;
+  const group = {
+    name,
+    code: generateGroupCode(),
+    group_no: newGroupNo,
+    team_members: [student_id_1, student_id_2, student_id_3].filter(Boolean),
+    total_points_earned: 0,
+    current_points: 0,
+    village_level: 1,
+    achievements: [],
+    group_rank: 0,
+  };
+  return Group.create(group);
+};
+
 const update_group_points = async (
   student_id,
   points,
@@ -88,14 +109,19 @@ const get_group_achievements = async (group_id) => {
     // const team_members = existingGroupDetails.team_members.filter(
     //   (mem) => mem
     // );
-    console.log('exist data',existingGroupDetails)
+    console.log("exist data", existingGroupDetails);
     const achievementsData = existingGroupDetails.achievements.map(
       (achievement) => ({
         reason: achievement?.reason,
         date: achievement?.date,
         type: achievement?.type,
         points: achievement?.points,
-        team:existingGroupDetails.team_members.filter(team=>team?._id?.toString()===achievement?.student_id?.toString()).map(team=>team?.name),
+        team: existingGroupDetails.team_members
+          .filter(
+            (team) =>
+              team?._id?.toString() === achievement?.student_id?.toString()
+          )
+          .map((team) => team?.name),
       })
     );
     return {
@@ -144,39 +170,36 @@ const updateVillageLevel = async (group_id, points_debited) => {
   }
 };
 
-const create_group = async (student_id_1, student_id_2, student_id_3) => {
-  // Find the maximum group number in the collection
-  const maxGroup = await Group.findOne({}, { group_no: 1 }).sort({
-    group_no: -1,
-  });
-
-  // Calculate the new group number (increment the maximum group number)
-  const newGroupNo = maxGroup ? maxGroup.group_no + 1 : 1;
-
-  const group = {
-    group_no: newGroupNo,
-    team_members: [student_id_1, student_id_2, student_id_3],
-    total_points_earned: 0,
-    current_points: 0,
-    village_level: 1,
-    achievements: [],
-    group_rank: 0,
-  };
-
-  //  // Create a new group document with the calculated group number
-  //  const newGroup = new Group({ group_no: newGroupNo });
-
-  //  // Save the new group document to the database
-  //  await newGroup.save();
-
-  return Group.create(group);
+const join_group = async (code, student_id) => {
+  const group = await Group.findOne({ code });
+  if (!group) throw new Error("Group not found");
+  if (group.team_members.length >= 3) throw new Error("Group is full");
+  if (group.team_members.includes(student_id))
+    throw new Error("Already in group");
+  group.team_members.push(student_id);
+  await group.save();
+  return group;
 };
+
+const exit_group = async (group_id, student_id) => {
+  const group = await Group.findById(group_id);
+  if (!group) throw new Error("Group not found");
+  group.team_members = group.team_members.filter(
+    (id) => id.toString() !== student_id
+  );
+  await group.save();
+  return group;
+};
+
+// ...other repository functions...
 
 module.exports = {
   findById,
+  create_group,
+  join_group,
+  exit_group,
   update_group_points,
   get_group_achievements,
   get_group_leaderboard,
-  create_group,
   updateVillageLevel,
 };
