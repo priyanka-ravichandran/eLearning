@@ -3,6 +3,7 @@ const { Group } = require("../../model/Group.model");
 const { response } = require("../../utils/response");
 const groupRepository = require("../../repository/group.repository");
 const { Message } = require("../../utils/Message");
+const { Student } = require("../../model/Student.model"); // Add this import if not present
 
 // Get group details
 const getGroupDetails = async (req, res) => {
@@ -21,6 +22,10 @@ const create_group = async (req, res) => {
   try {
     const { name, student_id_1, student_id_2, student_id_3 } = req.body;
     const group = await groupRepository.create_group(name, student_id_1, student_id_2, student_id_3);
+    // Update the creator's group field in Student schema
+    if (group && group._id && student_id_1) {
+      await Student.findByIdAndUpdate(student_id_1, { group: group._id });
+    }
     return response(res, 201, true, { group }, "Group created successfully");
   } catch (error) {
     return response(res, 500, false, {}, error.message);
@@ -32,6 +37,10 @@ const join_group = async (req, res) => {
   try {
     const { code, student_id } = req.body;
     const group = await groupRepository.join_group(code, student_id);
+    // Update the joining student's group field in Student schema
+    if (group && group._id && student_id) {
+      await Student.findByIdAndUpdate(student_id, { group: group._id });
+    }
     return response(res, 200, true, { group }, "Joined group successfully");
   } catch (error) {
     return response(res, 400, false, {}, error.message);
@@ -193,6 +202,24 @@ const get_group_leaderboard = async (req, res) => {
   }
 };
 
+// Get group details by student ID
+const getGroupByStudent = async (req, res) => {
+  try {
+    const { student_id } = req.body;
+    // Find the student and populate their group
+    const student = await Student.findById(student_id).populate({
+      path: "group",
+      populate: { path: "team_members" }
+    });
+    if (!student || !student.group) {
+      return response(res, 404, false, {}, "Student is not in any group");
+    }
+    return response(res, 200, true, { group: student.group }, "Group details fetched");
+  } catch (error) {
+    return response(res, 500, false, {}, error.message);
+  }
+};
+
 module.exports = {
   getGroupDetails,
   create_group,
@@ -202,4 +229,5 @@ module.exports = {
   update_group_points,
   get_group_achievements,
   get_group_leaderboard,
+  getGroupByStudent
 };

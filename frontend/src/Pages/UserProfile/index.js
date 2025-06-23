@@ -21,6 +21,8 @@ const UserProfile = () => {
   const [groupName, setGroupName] = useState("");
   // Join group form
   const [joinCode, setJoinCode] = useState("");
+  const [groupId, setGroupId] = useState(() => localStorage.getItem("group_id"));
+  const [groupDetails, setGroupDetails] = useState(null);
 
   // Fetch latest student details on mount
   useEffect(() => {
@@ -28,25 +30,84 @@ const UserProfile = () => {
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => {
+    if (groupId) {
+      fetchGroupDetails(groupId);
+    } else {
+      setGroupDetails(null);
+    }
+    // eslint-disable-next-line
+  }, [groupId]);
+
   const fetchStudentDetails = async () => {
     setLoading(true);
     setError("");
     try {
-      const student_details123 = JSON.parse(localStorage.getItem("student_details"));
-      const res = await fetch(`${API_BASE}/student/get_student_details`, {
+      // Get student details from localStorage
+      const student_details_local = JSON.parse(localStorage.getItem("student_details"));
+      if (!student_details_local || !student_details_local.student || !student_details_local.student._id) {
+        setError("No student found in local storage.");
+        setShowError(true);
+        setLoading(false);
+        return;
+      }
+      // Fetch group details for this student (contains both student and group)
+      const groupRes = await fetch(`${API_BASE}/group/get_group_by_student`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: student_details123.student._id }),
+        body: JSON.stringify({ student_id: student_details_local.student._id }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setStudentDetails(data.data);
-        localStorage.setItem("student_details", JSON.stringify(data.data));
+      const groupData = await groupRes.json();
+      if ((groupData.success || groupData.status) && groupData.data && groupData.data.student) {
+        // Use the student and group from this response
+        const updatedDetails = {
+          student: groupData.data.student,
+          group: groupData.data.group || null,
+        };
+        setStudentDetails(updatedDetails);
+        localStorage.setItem("student_details", JSON.stringify(updatedDetails));
       } else {
-        setError(data.message || "Failed to fetch profile.");
+        // If student is not in a group: still update student details
+        if (groupData.data && groupData.data.student) {
+          const updatedDetails = {
+            student: groupData.data.student,
+            group: null,
+          };
+          setStudentDetails(updatedDetails);
+          localStorage.setItem("student_details", JSON.stringify(updatedDetails));
+        } else {
+          setError(groupData.message || "Failed to fetch profile.");
+          setShowError(true);
+        }
       }
     } catch (err) {
       setError("Failed to fetch profile.");
+      setShowError(true);
+    }
+    setLoading(false);
+  };
+
+  const fetchGroupDetails = async (id) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/group/get_group_details`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group_id: id }),
+      });
+      const data = await res.json();
+      if ((data.success || data.status) && data.data && data.data.group) {
+        setGroupDetails(data.data.group);
+      } else {
+        setGroupDetails(null);
+        setError(data.message || "Failed to fetch group details.");
+        setShowError(true);
+      }
+    } catch (err) {
+      setGroupDetails(null);
+      setError("Failed to fetch group details.");
+      setShowError(true);
     }
     setLoading(false);
   };
@@ -72,7 +133,10 @@ const UserProfile = () => {
       if (data.success || data.status) {
         setSuccess(data.message || "Group created successfully!");
         setShowSuccess(true);
-        fetchStudentDetails();
+        if (data.data && data.data.group && data.data.group._id) {
+          localStorage.setItem("group_id", data.data.group._id);
+          setGroupId(data.data.group._id);
+        }
         setGroupName("");
         setActiveTab("group");
       } else {
@@ -86,7 +150,6 @@ const UserProfile = () => {
     setGroupActionLoading(false);
   };
 
-  // Join group handler
   const handleJoinGroup = async (e) => {
     e.preventDefault();
     setGroupActionLoading(true);
@@ -102,10 +165,13 @@ const UserProfile = () => {
         }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success || data.status) {
         setSuccess("Joined group successfully!");
         setShowSuccess(true);
-        fetchStudentDetails();
+        if (data.data && data.data.group && data.data.group._id) {
+          localStorage.setItem("group_id", data.data.group._id);
+          setGroupId(data.data.group._id);
+        }
         setJoinCode("");
         setActiveTab("group");
       } else {
@@ -130,7 +196,7 @@ const UserProfile = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          group_id: studentDetails.group._id,
+          group_id: groupId,
           student_id: studentDetails.student._id,
         }),
       });
@@ -138,7 +204,8 @@ const UserProfile = () => {
       if (data.success) {
         setSuccess("Exited group successfully!");
         setShowSuccess(true);
-        fetchStudentDetails();
+        localStorage.removeItem("group_id");
+        setGroupId(null);
         setActiveTab("profile");
       } else {
         setError(data.message || "Failed to exit group.");
@@ -181,7 +248,7 @@ const UserProfile = () => {
             {/* Profile Tab */}
             <Tab.Pane eventKey="profile">
               <Row className="align-items-center">
-                <Col xs={12} md={4} className="text-center mb-3">
+                <Col xs={12} md={4} className="text-center mb-3">I
                   <Avatar
                     name={studentDetails?.student?.name || "User"}
                     size="90"
@@ -227,51 +294,80 @@ const UserProfile = () => {
               ) : (
                 <>
                   {/* If user is in a group */}
-                  {studentDetails?.group ? (
+                  {groupDetails ? (
                     <Card className="mt-2 shadow-sm border-0">
                       <Card.Body>
-                        <div className="d-flex align-items-center mb-3">
-                          <Avatar
-                            name={`Group ${studentDetails.group.group_no}`}
-                            size="64"
-                            round
-                            color="#b2dfdb"
-                            fgColor="#267c5d"
-                          />
-                          <div className="ms-3">
-                            <h5 className="mb-1 fw-bold">
-                              Group #{studentDetails.group.group_no}
-                            </h5>
-                            <div className="text-muted small">
-                              Village Level: {studentDetails.group.village_level}
+                        <div className="d-flex align-items-center mb-3 justify-content-between">
+                          <div className="d-flex align-items-center">
+                            <Avatar
+                              name={`Group ${groupDetails.group_no}`}
+                              size="64"
+                              round
+                              color="#b2dfdb"
+                              fgColor="#267c5d"
+                            />
+                            <div className="ms-3">
+                              <h5 className="mb-1 fw-bold">
+                                Group #{groupDetails.group_no}
+                              </h5>
+                              <div className="text-muted small">
+                                Village Level: {groupDetails.village_level}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-end">
+                            <div className="text-secondary small mt-1">
+                              <strong>Passcode:</strong> <span className="fw-semibold">{groupDetails.code}</span>
                             </div>
                           </div>
                         </div>
                         <Row className="mb-2">
                           <Col xs={6}>
                             <div className="text-secondary small">Group Rank</div>
-                            <div className="fw-semibold">{studentDetails.group.group_rank ?? "-"}</div>
+                            <div className="fw-semibold">{groupDetails.group_rank ?? "-"}</div>
                           </Col>
                           <Col xs={6}>
                             <div className="text-secondary small">Current Points</div>
-                            <div className="fw-semibold">{studentDetails.group.current_points}</div>
+                            <div className="fw-semibold">{groupDetails.current_points}</div>
                           </Col>
                         </Row>
                         <Row className="mb-2">
                           <Col xs={6}>
                             <div className="text-secondary small">Total Points Earned</div>
-                            <div className="fw-semibold">{studentDetails.group.total_points_earned}</div>
+                            <div className="fw-semibold">{groupDetails.total_points_earned}</div>
                           </Col>
                           <Col xs={6}>
                             <div className="text-secondary small">Village Level</div>
-                            <div className="fw-semibold">{studentDetails.group.village_level}</div>
+                            <div className="fw-semibold">{groupDetails.village_level}</div>
                           </Col>
                         </Row>
                         <div className="mb-2">
-                          <div className="text-secondary small">Team Members</div>
-                          <div className="fw-semibold">
-                            {renderGroupMembers(studentDetails.group.team_members)}
-                          </div>
+                          <div className="text-secondary small mb-1">Team Members</div>
+                          {groupDetails.team_members && groupDetails.team_members.length > 0 ? (
+                            <div className="table-responsive">
+                              <table className="table table-sm table-bordered align-middle mb-0">
+                                <thead className="table-light">
+                                  <tr>
+                                    <th className="text-center" style={{ width: '40px' }}>#</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {groupDetails.team_members.map((member, idx) => (
+                                    console.log(groupDetails.team_members),
+                                    <tr key={member._id}>
+                                      <td className="text-center">{idx + 1}</td>
+                                      <td>{member.name}</td>
+                                      <td>{member.email}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <span>No members</span>
+                          )}
                         </div>
                         <Button
                           variant="danger"

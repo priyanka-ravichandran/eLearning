@@ -20,8 +20,9 @@ var StudentSchema = new Schema(
       type: String,
       required: true,
     },
-    group_id: {
-      type: String,
+    group: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
       default: null,
     },
 
