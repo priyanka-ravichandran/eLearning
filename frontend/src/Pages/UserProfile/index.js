@@ -201,11 +201,12 @@ const UserProfile = () => {
         }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success || data.status) {
         setSuccess("Exited group successfully!");
         setShowSuccess(true);
         localStorage.removeItem("group_id");
         setGroupId(null);
+        setGroupDetails(null);
         setActiveTab("profile");
       } else {
         setError(data.message || "Failed to exit group.");
@@ -300,7 +301,7 @@ const UserProfile = () => {
                         <div className="d-flex align-items-center mb-3 justify-content-between">
                           <div className="d-flex align-items-center">
                             <Avatar
-                              name={`Group ${groupDetails.group_no}`}
+                              name={groupDetails.name ? groupDetails.name : `Group ${groupDetails.group_no}`}
                               size="64"
                               round
                               color="#b2dfdb"
@@ -308,7 +309,7 @@ const UserProfile = () => {
                             />
                             <div className="ms-3">
                               <h5 className="mb-1 fw-bold">
-                                Group #{groupDetails.group_no}
+                                {groupDetails.name ? groupDetails.name : `Group #${groupDetails.group_no}`}
                               </h5>
                               <div className="text-muted small">
                                 Village Level: {groupDetails.village_level}

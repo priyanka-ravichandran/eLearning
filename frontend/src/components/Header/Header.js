@@ -16,8 +16,7 @@ function Header() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("user_token");
-    localStorage.removeItem("student_details");
+    localStorage.clear(); // Clear all localStorage
     persistor.purge();
     setStudentDetails(null);
     toast.success("Logout Successful");
