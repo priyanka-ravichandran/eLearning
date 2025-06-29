@@ -45,6 +45,7 @@ const PostQuestionDetail = () => {
 
   const param = useParams();
   const userData = useSelector((state) => state.user.user);
+  const [llmFeedback, setLlmFeedback] = React.useState(null);
 
   useEffect(() => {
     getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
@@ -65,6 +66,17 @@ const PostQuestionDetail = () => {
       })
       .catch((err) => toast.error("Some Error Occured"));
   };
+
+  // Function to handle answer submission (assuming you have it)
+  // If you have a submit handler, update it to setLlmFeedback with the llm response
+  // Example:
+  // const handleSubmitAnswer = (answer) => {
+  //   submitAnswerApi(...).then(res => {
+  //     setLlmFeedback(res.data.llm);
+  //     // Optionally refresh question details
+  //   });
+  // };
+
   return (
     <Row
       className="web-container"
@@ -143,6 +155,32 @@ const PostQuestionDetail = () => {
           })}  */}
         </div>
       </div>
+      {/* Show LLM feedback immediately after submission if present */}
+      {llmFeedback && (
+        <div
+          style={{
+            background: "#f9f6f2",
+            border: "2px solid #8B3B0E",
+            borderRadius: "8px",
+            padding: "16px 20px",
+            margin: "20px 0 10px 0",
+            boxShadow: "0 2px 8px rgba(139,59,14,0.08)",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#8B3B0E", marginBottom: 6 }}>
+            AI Feedback (Just Submitted)
+          </div>
+          <div style={{ fontSize: 16, marginBottom: 2 }}>
+            <b>Score:</b> {llmFeedback.score} / 10
+          </div>
+          <div style={{ fontSize: 15, marginBottom: 2 }}>
+            <b>Explanation:</b> {llmFeedback.explanation}
+          </div>
+          <div style={{ fontSize: 15 }}>
+            <b>Solution:</b> {llmFeedback.solution}
+          </div>
+        </div>
+      )}
       <div style={{ marginTop: "120px" }}>
         {getQuestionDetailsData?.data?.question?.answers?.map((data) => (
           <div className="comment-section">
@@ -188,6 +226,38 @@ const PostQuestionDetail = () => {
                 </div>
               </div>
               <div className="comment-text">{data?.answer}</div>
+              {/* LLM Feedback Section */}
+              {(data?.score !== undefined || data?.explanation || data?.solution) && (
+                <div
+                  style={{
+                    background: "#f9f6f2",
+                    border: "1px solid #e0d7ce",
+                    borderRadius: "8px",
+                    padding: "12px 16px",
+                    marginTop: "10px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "#8B3B0E", marginBottom: 4 }}>
+                    AI Feedback
+                  </div>
+                  {data?.score !== undefined && (
+                    <div style={{ fontSize: 16, marginBottom: 2 }}>
+                      <b>Score:</b> {data.score} / 10
+                    </div>
+                  )}
+                  {data?.explanation && (
+                    <div style={{ fontSize: 15, marginBottom: 2 }}>
+                      <b>Explanation:</b> {data.explanation}
+                    </div>
+                  )}
+                  {data?.solution && (
+                    <div style={{ fontSize: 15 }}>
+                      <b>Solution:</b> {data.solution}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -17,6 +17,10 @@ const UserProfile = () => {
   const [success, setSuccess] = useState("");
   const [showError, setShowError] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState("");
   // Create group form
   const [groupName, setGroupName] = useState("");
   // Join group form
@@ -29,6 +33,19 @@ const UserProfile = () => {
     fetchStudentDetails();
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    // Always sync groupId from backend studentDetails
+    if (studentDetails && studentDetails.group && studentDetails.group._id) {
+      if (groupId !== studentDetails.group._id) {
+        setGroupId(studentDetails.group._id);
+        localStorage.setItem("group_id", studentDetails.group._id);
+      }
+    } else {
+      setGroupId(null);
+      localStorage.removeItem("group_id");
+    }
+  }, [studentDetails]);
 
   useEffect(() => {
     if (groupId) {
@@ -57,29 +74,6 @@ const UserProfile = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: student_details_local.student._id }),
       });
-      const groupData = await groupRes.json();
-      if ((groupData.success || groupData.status) && groupData.data && groupData.data.student) {
-        // Use the student and group from this response
-        const updatedDetails = {
-          student: groupData.data.student,
-          group: groupData.data.group || null,
-        };
-        setStudentDetails(updatedDetails);
-        localStorage.setItem("student_details", JSON.stringify(updatedDetails));
-      } else {
-        // If student is not in a group: still update student details
-        if (groupData.data && groupData.data.student) {
-          const updatedDetails = {
-            student: groupData.data.student,
-            group: null,
-          };
-          setStudentDetails(updatedDetails);
-          localStorage.setItem("student_details", JSON.stringify(updatedDetails));
-        } else {
-          setError(groupData.message || "Failed to fetch profile.");
-          setShowError(true);
-        }
-      }
     } catch (err) {
       setError("Failed to fetch profile.");
       setShowError(true);
@@ -97,8 +91,19 @@ const UserProfile = () => {
         body: JSON.stringify({ group_id: id }),
       });
       const data = await res.json();
-      if ((data.success || data.status) && data.data && data.data.group) {
-        setGroupDetails(data.data.group);
+      if (data.status && data.data && data.data.group) {
+        // Check if group object is accessible and valid
+        if (typeof data.data.group !== "object" || data.data.group === null) {
+          setGroupDetails(null);
+          console.error("Invalid group data received:", data.data.group);
+          setError("Group details are not accessible.");
+          setShowError(true);
+        } else {
+          console.log("Group data received:", data.data.group);
+          setGroupDetails(data.data.group);
+          setError("");
+          setShowError(false);
+        }
       } else {
         setGroupDetails(null);
         setError(data.message || "Failed to fetch group details.");
@@ -131,7 +136,11 @@ const UserProfile = () => {
       });
       const data = await res.json();
       if (data.success || data.status) {
-        setSuccess(data.message || "Group created successfully!");
+        let passcodeMsg = "";
+        if (data.data && data.data.group && data.data.group.code) {
+          passcodeMsg = ` Passcode: ${data.data.group.code}`;
+        }
+        setSuccess((data.message || "Group created successfully!") + passcodeMsg);
         setShowSuccess(true);
         if (data.data && data.data.group && data.data.group._id) {
           localStorage.setItem("group_id", data.data.group._id);
@@ -166,7 +175,11 @@ const UserProfile = () => {
       });
       const data = await res.json();
       if (data.success || data.status) {
-        setSuccess("Joined group successfully!");
+        let passcodeMsg = "";
+        if (data.data && data.data.group && data.data.group.code) {
+          passcodeMsg = ` Passcode: ${data.data.group.code}`;
+        }
+        setSuccess("Joined group successfully!" + passcodeMsg);
         setShowSuccess(true);
         if (data.data && data.data.group && data.data.group._id) {
           localStorage.setItem("group_id", data.data.group._id);
@@ -219,6 +232,54 @@ const UserProfile = () => {
     setGroupActionLoading(false);
   };
 
+  const handleSharePasscode = () => {
+    if (groupDetails && groupDetails.code) {
+      navigator.clipboard.writeText(groupDetails.code);
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+    }
+  };
+
+const handleSendEmail = () => {
+  if (!groupDetails?.code) return;
+
+  const subject = 'Join my group on eLearning!';
+  const body = `Join "${groupDetails.name}" using passcode: ${groupDetails.code}`;
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  // Track if email client launched successfully
+  let emailLaunched = false;
+
+  // Method 1: Direct window.location (works in most cases)
+  try {
+    window.location.href = mailtoUrl;
+    emailLaunched = true;
+  } catch (e) {
+    console.log("Direct method failed", e);
+  }
+
+  // Method 2: Iframe fallback with longer timeout
+  setTimeout(() => {
+    if (!emailLaunched) {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = mailtoUrl;
+      document.body.appendChild(iframe);
+      
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        
+        // Only show error if nothing happened after 3 seconds total
+        if (!emailLaunched) {
+          navigator.clipboard.writeText(`${subject}\n\n${body}`);
+          setShowCopied(true);
+          setError('Email client not responding - invitation copied to clipboard');
+          setShowError(true);
+        }
+      }, 2000); // Additional 2 seconds for iframe method
+    }
+  }, 1000); // Initial 1 second delay
+};
   // Helper: Render group members
   const renderGroupMembers = (members) =>
     members.map((m, idx) => (
@@ -249,7 +310,7 @@ const UserProfile = () => {
             {/* Profile Tab */}
             <Tab.Pane eventKey="profile">
               <Row className="align-items-center">
-                <Col xs={12} md={4} className="text-center mb-3">I
+                <Col xs={12} md={4} className="text-center mb-3">
                   <Avatar
                     name={studentDetails?.student?.name || "User"}
                     size="90"
@@ -317,8 +378,30 @@ const UserProfile = () => {
                             </div>
                           </div>
                           <div className="text-end">
-                            <div className="text-secondary small mt-1">
-                              <strong>Passcode:</strong> <span className="fw-semibold">{groupDetails.code}</span>
+                            <div className="text-secondary small mt-1 d-flex align-items-center">
+                              <strong>Passcode:</strong> <span className="fw-semibold ms-1">{groupDetails.code}</span>
+                              <button
+                                className="btn btn-link p-0 ms-2"
+                                title="Copy passcode"
+                                style={{ fontSize: '1.2rem' }}
+                                onClick={handleSharePasscode}
+                              >
+                                {/* Inline SVG clipboard icon */}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M10 1.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 1 .5.5V14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 0 .5-.5v-1A.5.5 0 0 1 7.5 1h1A.5.5 0 0 1 10 1.5zm-1 0a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 1-.5.5h-1A1.5 1.5 0 0 0 3 3.5V14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3.5A1.5 1.5 0 0 0 12.5 2h-1a.5.5 0 0 1-.5-.5v-1z"/>
+                                </svg>
+                              </button>
+                              <button
+                                className="btn btn-link p-0 ms-2"
+                                title="Invite via Email"
+                                style={{ fontSize: '1.2rem' }}
+                                onClick={handleSendEmail}
+                              >
+                                {/* Inline SVG email icon */}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.383V5.383zm-.034 7.434-5.482-3.29-5.482 3.29A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.183zM1 11.383l4.708-2.825L1 5.383v6z"/>
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -356,7 +439,6 @@ const UserProfile = () => {
                                 </thead>
                                 <tbody>
                                   {groupDetails.team_members.map((member, idx) => (
-                                    console.log(groupDetails.team_members),
                                     <tr key={member._id}>
                                       <td className="text-center">{idx + 1}</td>
                                       <td>{member.name}</td>
@@ -482,6 +564,36 @@ const UserProfile = () => {
           <strong className="me-auto text-success">Success</strong>
         </Toast.Header>
         <Toast.Body className="text-white">{success}</Toast.Body>
+      </Toast>
+      <Toast
+        bg="info"
+        show={showCopied}
+        onClose={() => setShowCopied(false)}
+        delay={1500}
+        autohide
+        style={{ position: 'fixed', top: 80, right: 30, zIndex: 99999 }}
+      >
+        <Toast.Body className="text-white">Passcode copied!</Toast.Body>
+      </Toast>
+      <Toast
+        bg="info"
+        show={emailSent}
+        onClose={() => setEmailSent(false)}
+        delay={1500}
+        autohide
+        style={{ position: 'fixed', top: 120, right: 30, zIndex: 99999 }}
+      >
+        <Toast.Body className="text-white">Passcode sent via email!</Toast.Body>
+      </Toast>
+      <Toast
+        bg="danger"
+        show={!!emailError}
+        onClose={() => setEmailError("")}
+        delay={2000}
+        autohide
+        style={{ position: 'fixed', top: 160, right: 30, zIndex: 99999 }}
+      >
+        <Toast.Body className="text-white">{emailError}</Toast.Body>
       </Toast>
     </ToastContainer>
   </>

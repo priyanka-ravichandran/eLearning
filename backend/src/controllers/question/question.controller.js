@@ -107,7 +107,6 @@ const get_question_details = async (req, res) => {
 const submit_answer = async (req, res) => {
   try {
     const { question_id, student_id, answer } = req.body;
-
     try {
       const inidividual_leaderboard = await questionRepository.submit_answer(
         question_id,
@@ -186,26 +185,26 @@ const get_student_questions_posted = async (req, res) => {
       const questions = await questionRepository.get_student_questions_posted(
         topic
       );
-
-      return response(res, StatusCodes.ACCEPTED, true, questions, null);
+      // Always return questions in a 'data' property for frontend compatibility
+      return res.status(StatusCodes.ACCEPTED).json({
+        status: true,
+        data: questions,
+        message: "OK",
+      });
     } catch (error) {
-      return response(
-        res,
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        false,
-        {},
-        error.message
-      );
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        status: false,
+        data: [],
+        message: error.message,
+      });
     }
   } catch (error) {
     console.log(error.message);
-    return response(
-      res,
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      false,
-      {},
-      error.message
-    );
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: false,
+      data: [],
+      message: error.message,
+    });
   }
 };
 const vote_student_answer = async (req, res) => {

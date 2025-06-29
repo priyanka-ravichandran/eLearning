@@ -49,6 +49,12 @@ var QuestionSchema = new Schema(
         answer: String,
         date: Date,
         points_earned: Number,
+        // LLM feedback fields
+        is_correct: Boolean,
+        score: Number,
+        explanation: String,
+        solution: String,
+        verified: Boolean,
         vote_by: {
           type: Schema.Types.ObjectId,
           ref: "Student",

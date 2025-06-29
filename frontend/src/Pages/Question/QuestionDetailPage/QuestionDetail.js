@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import "./QuestionDetail.css";
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Form, FloatingLabel } from "react-bootstrap";
+import { Container, Row, Col, Form, FloatingLabel, Badge, Alert } from "react-bootstrap";
 
 import shell from "../../../Images/shell.png";
 import temp from "../../../Images/temp.png";
@@ -16,6 +16,7 @@ function Question() {
   const [displayDate, setDisplayDate] = useState("");
   const { id } = useParams();
   const [submittedAnswer, setSubmittedAnswer] = useState("");
+  const [llmVerification, setLlmVerification] = useState(null);
   const student_details = JSON.parse(localStorage.getItem("student_details"));
   const navigate = useNavigate();
 
@@ -78,6 +79,14 @@ function Question() {
       if (data.data.question.can_edit) {
         setSubmittedAnswer(data.data.question.student_answer);
       }
+      // LLM verification info if present
+      if (data.data.llm_verification) {
+        setLlmVerification(data.data.llm_verification);
+      } else if (data.data.question.llm_verification) {
+        setLlmVerification(data.data.question.llm_verification);
+      } else {
+        setLlmVerification(null);
+      }
     } catch (error) {
       console.error("Error fetching data:", error.message);
     }
@@ -98,7 +107,7 @@ function Question() {
       };
 
       const response = await fetch(
-        base_url + "/question/submit_answer",
+        base_url + "/student_question/submit_answer",
         requestOptions
       );
       const data = await response.json();
@@ -106,6 +115,12 @@ function Question() {
       toast.success("Answer Submitted Successfully");
 
       setQuestionDetails(data.data);
+      // LLM verification info
+      if (data.data.llm_verification) {
+        setLlmVerification(data.data.llm_verification);
+      } else {
+        setLlmVerification(null);
+      }
     } catch (error) {
       console.error("Error fetching data:", error.message);
     }
@@ -191,6 +206,38 @@ function Question() {
                   Update your Answer
                 </button>
               )}
+            </Col>
+          </Row>
+        )}
+        {/* LLM Verification Result (after submit or for submitted answers) */}
+        {llmVerification && (
+          <Row className="row px-4 py-2">
+            <Col>
+              <Alert
+                variant={llmVerification.is_correct ? "success" : "danger"}
+                className="d-flex align-items-center"
+              >
+                <span style={{ fontSize: "1.5rem", marginRight: 10 }}>
+                  {llmVerification.is_correct ? "✔️" : "❌"}
+                </span>
+                <span>
+                  <b>
+                    {llmVerification.is_correct
+                      ? "Correct Answer!"
+                      : "Not Fully Correct"}
+                  </b>
+                  <br />
+                  <span>
+                    <Badge bg="info" className="me-2">
+                      Score: {llmVerification.score ?? 0}
+                    </Badge>
+                  </span>
+                  <br />
+                  <span>
+                    <b>Explanation:</b> {llmVerification.explanation}
+                  </span>
+                </span>
+              </Alert>
             </Col>
           </Row>
         )}

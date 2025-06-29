@@ -4,6 +4,7 @@ const { response } = require("../../utils/response");
 const groupRepository = require("../../repository/group.repository");
 const { Message } = require("../../utils/Message");
 const { Student } = require("../../model/Student.model"); // Add this import if not present
+const sendMail = require("../../utils/sendEmail");
 
 // Get group details
 const getGroupDetails = async (req, res) => {
@@ -25,6 +26,19 @@ const create_group = async (req, res) => {
     // Update the creator's group field in Student schema
     if (group && group._id && student_id_1) {
       await Student.findByIdAndUpdate(student_id_1, { group: group._id });
+      // Send passcode email to creator
+      const creator = await Student.findById(student_id_1);
+      if (creator && creator.email) {
+        await sendMail(
+          creator.email,
+          `Welcome to ${group.name}! Your Group Passcode`,
+          `<p>Hello ${creator.name},</p>
+           <p>You have created the group <b>${group.name}</b>.</p>
+           <p>Your group passcode is: <b>${group.code}</b></p>
+           <p>Share this passcode with your teammates to join the group.</p>
+           <p>Best regards,<br/>E-Learning Team</p>`
+        );
+      }
     }
     return response(res, 201, true, { group }, "Group created successfully");
   } catch (error) {
@@ -40,6 +54,19 @@ const join_group = async (req, res) => {
     // Update the joining student's group field in Student schema
     if (group && group._id && student_id) {
       await Student.findByIdAndUpdate(student_id, { group: group._id });
+      // Send passcode email to joining student
+      const student = await Student.findById(student_id);
+      if (student && student.email) {
+        await sendMail(
+          student.email,
+          `Joined ${group.name}! Your Group Passcode`,
+          `<p>Hello ${student.name},</p>
+           <p>You have joined the group <b>${group.name}</b>.</p>
+           <p>Your group passcode is: <b>${group.code}</b></p>
+           <p>Share this passcode with your teammates to join the group.</p>
+           <p>Best regards,<br/>E-Learning Team</p>`
+        );
+      }
     }
     return response(res, 200, true, { group }, "Joined group successfully");
   } catch (error) {

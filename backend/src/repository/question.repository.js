@@ -1,11 +1,12 @@
 const { Question } = require('../model/Question.model')
 const { ObjectId } = require('mongodb')
 const studentRepository = require('../repository/student.repository')
+const { Configuration, OpenAIApi } = require("openai");
+require('dotenv').config();
 
 const post_a_question = async question => {
   question.answers = []
   question.date_posted = new Date()
-  console.log('question:', question)
   return Question.create(question)
 }
 
@@ -43,7 +44,6 @@ const get_question_details = async (question_id, student_id) => {
 
     let result = question.toObject()
 
-    console.log('TYPE: ' + typeof result, result)
 
     if (!result) {
       console.log('Question not found.')
@@ -54,11 +54,7 @@ const get_question_details = async (question_id, student_id) => {
         answer => answer.student_id.toString() == student_id
       )
 
-      console.log('answer: ' + answer)
-
       delete result['answers']
-
-      console.log('after deleting answers: ' + result)
 
       if (answer !== undefined) {
         result['student_answer'] = answer.answer
@@ -66,15 +62,11 @@ const get_question_details = async (question_id, student_id) => {
         result['student_answer'] = null
       }
 
-      console.log('after adding student answer:', result)
-
       // Checking if due_date has passed
       const currentDate = new Date()
       const due_date = new Date(result['due_date'])
-      console.log('current date: ' + currentDate, currentDate <= due_date)
       result.can_edit = currentDate <= due_date
 
-      console.log('FINAL', result)
     }
 
     return result
@@ -83,50 +75,77 @@ const get_question_details = async (question_id, student_id) => {
   }
 }
 
+const verify_answer_with_llm = async (questionText, correctAnswer, studentAnswer) => {
+  const configuration = new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  const openai = new OpenAIApi(configuration);
+  
+
+  const prompt = `You are an expert teacher. Here is a question and a student's answer.\nQuestion: ${questionText}\nCorrect Answer: ${correctAnswer}\nStudent's Answer: ${studentAnswer}\n\nEvaluate the student's answer. If it is fully correct, reply with:\n{"is_correct": true, "score": 20, "explanation": "Perfect answer."}\n\nIf it is partially correct, reply with:\n{"is_correct": false, "score": <score out of 20>, "explanation": "<explain what is missing or wrong>"}`;
+  console.log('Calling OpenAI API with prompt:', prompt);
+  const completion = await openai.createChatCompletion({
+    model: "gpt-3.5-turbo",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0,
+  });
+
+  const text = completion.data.choices[0].message.content.trim();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { is_correct: false, score: 0, explanation: "Could not verify answer." };
+  }}
+  
+
 const submit_answer = async (question_id, student_id, answer) => {
   try {
-    let question = await Question.findById(question_id)
-
-    console.log('question', question)
-
-    let answers = question.answers
-
-    let index = answers.findIndex(answer => answer['student_id'] == student_id)
-
+    let question = await Question.findById(question_id);
+    let answers = question.answers;
+    let index = answers.findIndex(ans => ans['student_id'] == student_id);
+    let isNew = false;
     if (index !== -1) {
-      // Update the value of the existing object
-      question.answers[index]['answer'] = answer
+      question.answers[index]['answer'] = answer;
     } else {
-      // Create a new object with the specified key-value pair
-      let student_answer = {
-        student_id: student_id,
-        answer: answer,
+      isNew = true;
+      question.answers.push({
+        student_id,
+        answer,
         date: new Date(),
         points_earned: null
-      }
-      question.answers.push(student_answer)
+      });
+      index = question.answers.length - 1;
+    }
+    console.log('Calling OpenAI API with prompt:')
+    // LLM verification
+    const llmResult = await verify_answer_with_llm(
+      question.question,
+      question.correct_answer,
+      answer
+    );
+    question.answers[index]['is_correct'] = llmResult.is_correct;
+    question.answers[index]['score'] = llmResult.score;
+    question.answers[index]['explanation'] = llmResult.explanation;
+    question.answers[index]['verified'] = true;
+
+    // Award points
+    if (llmResult.score && llmResult.score > 0) {
+      await studentRepository.update_student_points(
+        student_id,
+        llmResult.score,
+        'credit',
+        'LLM Answer Scoring'
+      );
+      question.answers[index]['points_earned'] = llmResult.score;
     }
 
-    console.log('questions after:', question)
+    await question.save();
 
-    await question.save()
-
-    const updatedDetails = await get_question_details(question_id, student_id)
-
-    console.log('updatedDetails:', updatedDetails);
-
-    const reason = 'Answered Question of the Day/week'
-
-    await studentRepository.update_student_points(
-      student_id,
-      20,
-      'credit',
-      'Answered Question of the Day/week'
-    )
-
-    return updatedDetails
+    const updatedDetails = await get_question_details(question_id, student_id);
+    updatedDetails.llm_verification = llmResult;
+    return updatedDetails;
   } catch (error) {
-    console.log('error', error)
+    console.log('error', error);
     throw new Error('Error updating the points')
   }
 }
@@ -136,4 +155,4 @@ module.exports = {
   get_questions_for_week,
   get_question_details,
   submit_answer
-}
+};

@@ -1,59 +1,69 @@
 .login-container {
   padding: 0 !important;
+}
 
-  .row {
-    background-color: var(--light-pink);
-    padding: 0;
-    margin: 0;
-  }
+.login-container .row {
+  background-color: var(--light-pink);
+  padding: 0;
+  margin: 0;
+}
 
-  .container-fluid {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
+.login-container .container-fluid {
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
-  .left-col {
-    height: 100vh;
-    padding: 10px;
-  }
+.login-container .left-col {
+  height: 100vh;
+  padding: 10px;
+}
 
-  .register-form {
-    padding: 10px 40px;
-    text-align: left;
-    color: var(--main-orange);
-    align-self: center;
-  }
+.login-container .register-form {
+  padding: 10px 40px;
+  text-align: left;
+  color: var(--main-orange);
+  align-self: center;
+}
 
-  .form {
-    font-weight: 500;
+.login-container .form {
+  font-weight: 500;
+}
 
-    .form-label {
-      margin: 2px;
-    }
-  }
+.login-container .form .form-label {
+  margin: 2px;
+}
 
-  .right-col {
-    height: 100vh;
-    padding: 20px 50px !important;
-  }
+.login-container .form .form-control {
+  margin-bottom: 2px !important; /* tighter spacing */
+}
 
-  .right-container {
-    background-color: var(--main-orange);
-    height: 100%;
-    border-radius: 3%;
-    align-items: center;
-  }
+.login-container .form .text-danger {
+  margin: 2px 0 4px 0 !important; /* close to the input */
+  font-size: 0.85rem;
+  color: #d9534f; /* Bootstrap error red */
+}
 
-  .redirect {
-    font-weight: bold;
-    color: black;
+.login-container .right-col {
+  height: 100vh;
+  padding: 20px 50px !important;
+}
 
-    span {
-      color: var(--main-orange);
-    }
-  }
+.login-container .right-container {
+  background-color: var(--main-orange);
+  height: 100%;
+  border-radius: 3%;
+  align-items: center;
+}
 
-  .logo {
-    height: 100px;
-  }
+.login-container .redirect {
+  font-weight: bold;
+  color: black;
+}
+
+.login-container .redirect span {
+  color: var(--main-orange);
+}
+
+.login-container .logo {
+  height: 100px;
 }

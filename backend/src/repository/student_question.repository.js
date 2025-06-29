@@ -1,265 +1,182 @@
+// src/repository/student_question.repository.js
+require("dotenv").config();
+const OpenAI = require("openai");
 const { StudentQuestion: Question } = require("../model/StudentQuestion.model");
-const { ObjectId } = require("mongodb");
 const { Student } = require("../model/Student.model");
 
-const post_a_question = async (
-  question,
-  description,
-  topic,
-  points,
-  student_id
-) => {
-  question.answers = [];
-  let date_posted = new Date();
-  return Question.create({
-    question: question,
-    description: description,
-    topic: topic,
-    points: points,
-    date_posted: date_posted,
-    created_by: student_id,
-    active_from_date: new Date(),
-    points: 20,
-    question_type: "week",
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/**
+ * Calls OpenAI with a prompt that:
+ *  1) Solves the equation step by step.
+ *  2) Parses out the numeric piece of the student's answer.
+ *  3) Compares and deducts 2 points for each missing step.
+ */
+async function verifyAnswerWithLLM(qText, correctAns = "", studentAns = "") {
+  // 1) Solve yourself, 2) extract student number, 3) compare & deduct for missing steps
+  const prompt = `
+You are an experienced math teacher.  Here is a one-line equation and a student's answer.
+
+Equation: ${qText}
+Correct Answer (for reference): ${correctAns || "N/A"}
+Student's Answer (raw): ${studentAns}
+
+TASK:
+
+1) Solve the equation yourself, showing every single algebraic manipulation as separate lines:
+   e.g. 
+     2x = 5 - 4
+     2x = 1
+     x = 1/2
+   Conclude with: Therefore, x = <your result>.
+
+2) From the student's raw answer, extract just the numeric part (it could be "1/2", "0.5", etc.) and convert to a single decimal or fraction.
+
+3) If the student's number equals your computed result:
+     - is_correct = true
+     - score = 10
+     - explanation = "Perfect answer."
+   Otherwise:
+     - is_correct = false
+     - score = 0
+     - explanation = "Student's numeric answer is incorrect."
+
+4) Next, count how many lines of work **you** wrote in step 1 (excluding the final summary line).  
+   Count how many lines of work the **student** showed (by detecting line-breaks or explicit equalities).  
+   For each line the student **did not** include that you did, deduct 2 points (minimum score = 0).
+
+5) If the student wrote no intermediate lines at all but did get the number right, deduct 2 points for “missing intermediate steps.”  
+
+OUTPUT **only** valid JSON with exactly these four keys:
+{
+  "is_correct": <true|false>,
+  "score": <integer between 0 and 10>,
+  "explanation": "<semicolon-separated deductions>",
+  "solution": "<your full worked step-by-step solution ending with 'Therefore, x = …'>"
+}
+`.trim();
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    temperature: 0,
+    messages: [{ role: "user", content: prompt }],
   });
-};
 
-const get_questions_for_week = async (start_date, end_date) => {
+  const raw = completion.choices[0].message.content.trim();
   try {
-    const questions = await Question.find({
-      due_date: { $gte: start_date, $lte: end_date }, // Retrieve questions where due_date is between start_date and end_date
-    });
-
-    let daysArray = [];
-    let weekObject = {};
-
-    questions.forEach((obj) => {
-      if (obj.question_type === "day") {
-        daysArray.push(obj);
-      } else if (obj.question_type === "week") {
-        weekObject = obj;
-      }
-    });
-
-    daysArray.sort((a, b) => a.due_date - b.due_date);
-
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("LLM parse error:", raw);
     return {
-      day: daysArray,
-      week: weekObject,
+      is_correct: false,
+      score: 0,
+      explanation: "Could not parse LLM response.",
+      solution: correctAns || "Solution unavailable."
     };
-  } catch (error) {
-    throw new Error("Error updating the points");
   }
-};
+}
 
-const get_question_details = async (question_id, student_id) => {
-  try {
-    var question = await Question.findById(question_id).populate(
-      "created_by",
-      "name"
-    );
-    let result = await question.populate({
-      path: "answers",
-      select: "student_id",
-      populate: { path: "student_id", select: "name" },
-    });
+// … your existing CRUD below …
 
-    console.log("TYPE: " + typeof result, result);
-
-    if (!result) {
-      console.log("Question not found.");
-      return null;
-    } else {
-      // Find the answer object containing the provided student_id
-      // const answer = result.answers.find(
-      //   (answer) => answer.student_id.toString() === student_id.toString()
-      // );
-
-      // console.log("answer: " + answer);
-
-      // delete result["answers"];
-
-      // console.log("after deleting answers: " + result);
-
-      // if (answer !== undefined) {
-      //   result["student_answer"] = answer;
-      // } else {
-      //   result["student_answer"] = null;
-      // }
-
-      // console.log("after adding student answer:", result);
-
-      // Checking if due_date has passed
-      const currentDate = new Date();
-      const due_date = new Date(result["due_date"]);
-      console.log("current date: " + currentDate, currentDate <= due_date);
-      console.log("FINAL", result);
-    }
-
-    return result;
-  } catch (error) {
-    console.log("Error:", error);
-    throw new Error("Error updating the points");
-  }
-};
-
-const submit_answer = async (question_id, student_id, answer) => {
-  try {
-    let question = await Question.findById(question_id);
-
-    console.log("question", question);
-
-    let answers = question.answers;
-
-    let index = answers.findIndex(
-      (answer) => answer["student_id"] == student_id
-    );
-
-    if (index !== -1) {
-      // Update the value of the existing object
-      question.answers[index]["answer"] = answer;
-    } else {
-      // Create a new object with the specified key-value pair
-      let student_answer = {
-        student_id: student_id,
-        answer: answer,
-        date: new Date(),
-        points_earned: null,
-      };
-      question.answers.push(student_answer);
-      // let newObj = { [key]: newValue };
-      // arr.push(newObj);
-    }
-
-    // let student_answer = {
-    //   student_id: student_id,
-    //   answer: answer,
-    //   date: new Date(),
-    //   points_earned: null
-    // }
-
-    // if (question) {
-    //   question.answers.push(student_answer)
-    // }
-
-    console.log("questions after:", question);
-
-    // const newQuestion = new Question(questionData); // Create a new instance of your Question model with the provided data
-    await question.save();
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    throw new Error("Error updating the points");
-  }
-};
-
-const get_my_questions = async (start_date, end_date, topic, student_id) => {
-  try {
-    console.log(topic, student_id);
-    //find questions list  with given topic & student_id ,start_date,end_date where student_id is in answers array
-    let questions;
-    if (topic === "All") {
-      questions = await Question.find({
-        created_by: student_id,
-      });
-    } else {
-      questions = await Question.find({
-        topic: topic,
-        // due_date: { $gte: start_date, $lte: end_date },
-        created_by: student_id,
-
-        // "answers.student_id": student_id,
-      });
-    }
-
-    return questions;
-  } catch (error) {
-    console.log("rErr", error);
-    throw new Error("Error updating the points");
-  }
-};
-
-const get_student_questions_posted = async (
-  topic,
-  start_date,
-  end_date,
-  student_id
-) => {
-  try {
-    let questions;
-    if (topic === "All") {
-      questions = await Question.find({});
-      return questions;
-    } else {
-      questions = await Question.find({
-        topic: topic,
-      });
-    }
-
-    return questions;
-  } catch (error) {
-    console.log("rErr", error);
-    throw new Error("Error updating the points");
-  }
-};
-
-const vote_student_answer = async (question_id, vote_by, vote_to, vote) => {
-  try {
-    let question = await Question.findById(question_id);
-    let answer = await question.answers.filter(
-      (answer) => answer.student_id.toString() === vote_to.toString()
-    )[0];
-
-    answer.vote_by = vote_by;
-    answer.vote_to = vote_to;
-    answer.vote = vote;
-    console.log("answer", answer);
-    const res = await question.save();
-    console.log("res here", res);
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.log({ error });
-    throw new Error("Error updating the points");
-  }
-};
-
-const react_to_answer = async (
-  question_id,
-  reaction_by,
-  reaction_for,
-  reaction
-) => {
-  try {
-    let question = await Question.findById(question_id);
-    let answer = await question.answers.filter(
-      (answer) => answer.student_id.toString() === reaction_for.toString()
-    )[0];
-
-    answer.reaction_by = reaction_by;
-    answer.reaction_for = reaction_for;
-    answer.reaction = reaction;
-    console.log("answer", answer);
-    const res = await question.save();
-    console.log("res here", res);
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.log({ error });
-    throw new Error("Error updating the points");
-  }
-};
 module.exports = {
-  post_a_question,
-  get_questions_for_week,
-  get_question_details,
-  submit_answer,
-  get_my_questions,
-  get_student_questions_posted,
-  vote_student_answer,
-  react_to_answer,
+  post_a_question: async (question, description, topic, points, student_id) => {
+    return Question.create({
+      question,
+      description,
+      topic,
+      points,
+      date_posted: new Date(),
+      created_by: student_id,
+      active_from_date: new Date(),
+      question_type: "week",
+    });
+  },
+
+  get_questions_for_week: async (start_date, end_date) => {
+    const qs = await Question.find({
+      due_date: { $gte: start_date, $lte: end_date }
+    });
+    return {
+      day: qs.filter(q => q.question_type === "day").sort((a,b)=>a.due_date-b.due_date),
+      week: qs.find(q => q.question_type === "week") || {}
+    };
+  },
+
+  get_question_details: async (question_id) => {
+    return Question.findById(question_id)
+      .populate("created_by", "name")
+      .populate({
+        path: "answers",
+        populate: { path: "student_id", select: "name" }
+      });
+  },
+
+  submit_answer: async (question_id, student_id, answer) => {
+    const q = await Question.findById(question_id);
+    if (!q) throw new Error("Question not found");
+
+    // Upsert
+    let idx = q.answers.findIndex(a => String(a.student_id) === String(student_id));
+    if (idx === -1) {
+      q.answers.push({ student_id, answer, date: new Date() });
+      idx = q.answers.length - 1;
+    } else {
+      q.answers[idx].answer = answer;
+      q.answers[idx].date = new Date();
+    }
+
+    // LLM scoring
+    const llm = await verifyAnswerWithLLM(q.question, q.correct_answer || "", answer);
+
+    Object.assign(q.answers[idx], {
+      is_correct:   llm.is_correct,
+      score:        llm.score,
+      explanation:  llm.explanation,
+      solution:     llm.solution,
+      verified:     true,
+      points_earned: llm.score
+    });
+
+    if (llm.score > 0) {
+      await Student.updateOne(
+        { _id: student_id },
+        { $inc: { current_points: llm.score, total_points_earned: llm.score } }
+      );
+    }
+
+    await q.save();
+    return { success: true, llm };
+  },
+
+  // GET only this student’s questions
+  get_my_questions: (start_date, end_date, topic, student_id) => {
+    const filter = topic === "All"
+      ? { created_by: student_id }
+      : { topic, created_by: student_id };
+    return Question.find(filter);
+  },
+
+  // GET all posted (or by topic)
+  get_student_questions_posted: (topic) => {
+    return topic === "All"
+      ? Question.find({})
+      : Question.find({ topic });
+  },
+
+  // simple vote / react handlers
+  vote_student_answer: async (question_id, vote_by, vote_to, vote) => {
+    const q = await Question.findById(question_id);
+    const ans = q.answers.find(a => String(a.student_id) === String(vote_to));
+    Object.assign(ans, { vote_by, vote_to, vote });
+    await q.save();
+    return { success: true };
+  },
+
+  react_to_answer: async (question_id, reaction_by, reaction_for, reaction) => {
+    const q = await Question.findById(question_id);
+    const ans = q.answers.find(a => String(a.student_id) === String(reaction_for));
+    Object.assign(ans, { reaction_by, reaction_for, reaction });
+    await q.save();
+    return { success: true };
+  }
 };

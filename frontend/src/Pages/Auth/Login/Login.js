@@ -6,7 +6,6 @@ import logo from "../../../Images/eLearning.png";
 import auth from "../../../Images/auth.png";
 import { setUserData } from "../../../redux/userSlice";
 import { useDispatch } from "react-redux";
-import { toast } from "react-toastify";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -57,24 +56,26 @@ function Login() {
               "student_details",
               JSON.stringify(data.data.student_details)
             );
-            toast.success("Login Successful")
             navigate("/");
           } else {
-            console.log(data.message);
+            setErrors({ ...errors, login: data.message || "Invalid credentials" });
           }
         })
         .catch((error) => {
           console.log(error);
+          setErrors({ ...errors, login: "Something went wrong. Please try again." });
         });
     }
   };
 
   const handleEmailChange = (event) => {
     setEmail(event.target.value);
+    setErrors({ ...errors, email: "", login: "" });
   };
 
   const handlePasswordChange = (event) => {
     setPassword(event.target.value);
+    setErrors({ ...errors, password: "", login: "" });
   };
 
   return (
@@ -106,8 +107,7 @@ function Login() {
               </Form.Group>
 
               <Form.Group
-                className="mb-4"
-                controlId="exampleForm.ControlInput1"
+                controlId="exampleForm.ControlInput2"
               >
                 <Form.Label>Password</Form.Label>
                 <Form.Control
@@ -116,12 +116,12 @@ function Login() {
                   value={password}
                   onChange={handlePasswordChange}
                 />
-                {errors.password && (
-                  <p className="text-danger">{errors.password}</p>
-                )}
+                {errors.password && <p className="text-danger">{errors.password}</p>}
               </Form.Group>
 
-              <button className="orange-btn-white-font w-100 p-2 mt-2">
+              {errors.login && <p className="text-danger">{errors.login}</p>}
+
+              <button className="orange-btn-white-font w-100 p-2 mt-4">
                 Login
               </button>
             </Form>

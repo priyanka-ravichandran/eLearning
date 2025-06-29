@@ -19,52 +19,27 @@ import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import Avatar from "react-avatar";
 
-const data = {
-  name: "Adam Levine",
-  date: "Feb 4,2024",
-  topic: "History",
-  question:
-    "How could the sense of inclusiveness be better among the students?In what ways can schools foster an environment that promotes inclusivity and diversity among their student body?",
-  secondaryText: [
-    "From the diagram below, elaborate on What were the key economic, social, and political factors that ultimately led to the outbreak of the Civil War in the United States?In what ways did the issue of slavery intensify regional tensions, ultimately becoming a central point of contention between the Northern and Southern states?How did the secession of Southern states and the formation of the Confederate States of America contribute to the escalation of hostilities leading to the Civil War?",
-    "o what extent did the Emancipation Proclamation transform the objectives of the Civil War, turning it into a fight not only for preserving the Union but also for the abolition of slavery?What were the consequences of key battles such as Gettysburg and Antietam, both strategically and in terms of shaping the course of the war and public opinion?In what ways did the outcome of the Civil War shape the subsequent Reconstruction era, influencing the path of the United States toward reunification and addressing the challenges of the post-war period?",
-  ],
-  comments: [
-    {
-      name: "Adam Levine",
-      comment:
-        "The Civil War erupted primarily due to deep-seated tensions over slavery, exacerbated by economic disparities and differing political ideologies between the Northern and Southern states.The Civil War erupted primarily due to deep-seated tensions over slavery, exacerbated by economic disparities and differing political ideologies between the Northern and Southern states.",
-      date: "Feb 4,2024",
-    },
-    {
-      name: "Ronaldo",
-      comment:
-        "The Civil War erupted primarily due to deep-seated tensions over slavery, exacerbated by economic disparities and differing political ideologies between the Northern and Southern states.The Civil War erupted primarily due to deep-seated tensions over slavery, exacerbated by economic disparities and differing political ideologies between the Northern and Southern states.",
-      date: "Feb 4,2024",
-    },
-  ],
-  imageUrl: "https://i.pravatar.cc/150?img=3",
-};
-export const fullDate = (date) => {
-  return new Date(date)?.toLocaleDateString("en-US", {
+export const fullDate = (date) =>
+  new Date(date).toLocaleDateString("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-};
+
 const HelpFriendDetails = () => {
   const [userComment, setUserComment] = useState("");
-  const [getQuestionDetails, { data: getQuestionDetailsData }, refe] =
+  const [getQuestionDetails, { data: getQuestionDetailsData }] =
     useLazyGetQuestionDetailQuery();
-  const [getSubmitAnswer, { data: getSubmitAns }] = useSubmitAnswerMutation();
-  const [reactToAnswer, { isSuccess }] = useReactToAnswerMutation();
+  const [getSubmitAnswer] = useSubmitAnswerMutation();
+  const [reactToAnswer] = useReactToAnswerMutation();
+  const [llmFeedback, setLlmFeedback] = useState(null);
 
   const param = useParams();
   const userData = useSelector((state) => state.user.user);
 
   useEffect(() => {
     getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
-  }, []);
+  }, [getQuestionDetails, param, userData]);
 
   const onSubmitQuestionAns = async () => {
     getSubmitAnswer({
@@ -75,13 +50,28 @@ const HelpFriendDetails = () => {
       .then((res) => {
         setUserComment("");
         toast.success(`Answer Submitted Successfully`);
-    getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
-      })
-      .catch((err) =>{ 
-        toast.error("Some error Occured")
-      getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
 
-    });
+        // Capture the LLM block if returned immediately
+        if (res?.data?.llm) {
+          setLlmFeedback(res.data.llm);
+        } else {
+          setLlmFeedback(null);
+        }
+
+        // Refresh question / answers
+        getQuestionDetails({
+          question_id: param?.id,
+          student_id: userData?._id,
+        });
+      })
+      .catch(() => {
+        toast.error("Some error occurred");
+        // still refresh to get whatever came back
+        getQuestionDetails({
+          question_id: param?.id,
+          student_id: userData?._id,
+        });
+      });
   };
 
   const handleReaction = (reactionType, voteTo) => {
@@ -90,238 +80,180 @@ const HelpFriendDetails = () => {
       reaction_by: userData?._id,
       reaction_for: voteTo,
       reaction: reactionType,
-    }).then((res) => {
+    }).then(() => {
       toast.success(`Reacted with ${reactionType}`);
-    getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
-  });
+      getQuestionDetails({
+        question_id: param?.id,
+        student_id: userData?._id,
+      });
+    });
   };
-  return (
-    <Row
-      className="web-container"
-      style={{
-        backgroundColor: "white",
-      }}
-    >
-      <div className="pt-4 d-flex justify-content-between align-items-center">
-        <span
-          style={{
-            color: "rgba(203, 94, 33, 1)",
-            fontSize: "25px",
-          }}
-        >
-          Posted by
-        </span>
-        <div style={{ fontSize: "25px" }}>
-          Topic:{" "}
-          <span
-            style={{
-              fontWeight: "bold",
-              fontSize: "25px",
-            }}
-          >
-            {getQuestionDetailsData?.data?.question?.topic}
-          </span>
-        </div>
-      </div>
-      <div className="d-flex align-items-center mb-4">
-      <Avatar size={50} round={true} style={{margin:'0 10px'}} name={getQuestionDetailsData?.data?.question?.created_by?.name} maxInitials={2}/>
 
-        <div>
-          <span
-            style={{
-              fontWeight: "bold",
-              fontSize: "25px",
-            }}
-          >
-            {" "}
-            {getQuestionDetailsData?.data?.question?.created_by?.name}
-          </span>{" "}
-          <span style={{ fontSize: "25px" }}>
-            on {fullDate(getQuestionDetailsData?.data?.question?.date_posted)}
+  const question = getQuestionDetailsData?.data?.question;
+
+  return (
+    <Row className="web-container" style={{ backgroundColor: "white" }}>
+      {/* Header */}
+      <div className="pt-4 d-flex justify-content-between align-items-center">
+        <span style={{ color: "#CB5E21", fontSize: 25 }}>Posted by</span>
+        <div style={{ fontSize: 25 }}>
+          Topic:{" "}
+          <span style={{ fontWeight: "bold", fontSize: 25 }}>
+            {question?.topic}
           </span>
         </div>
       </div>
-      <div
-        style={{
-          textAlign: "left",
-          fontSize: "20px",
-        }}
-      >
-        {getQuestionDetailsData?.data?.question?.question}
-      </div>
-      <div
-        style={{
-          marginTop: "4rem",
-        }}
-        className="question-information d-flex"
-      >
-        
-        <div
-         
-        >
-          {/* {data?.secondaryText?.map((comment, index) => {
-            return ( */}
-          <div
-            style={{
-              textAlign: "left",
-            }}
-            // key={index}
-          >
-            <p>{getQuestionDetailsData?.data?.question?.description}</p>
-          </div>
-          {/* );
-          })} */}
+
+      {/* Author + Date */}
+      <div className="d-flex align-items-center mb-4">
+        <Avatar
+          size={50}
+          round
+          style={{ margin: "0 10px" }}
+          name={question?.created_by?.name}
+          maxInitials={2}
+        />
+        <div>
+          <span style={{ fontWeight: "bold", fontSize: 25 }}>
+            {question?.created_by?.name}
+          </span>{" "}
+          <span style={{ fontSize: 25 }}>
+            on {fullDate(question?.date_posted)}
+          </span>
         </div>
       </div>
+
+      {/* Question */}
+      <div style={{ textAlign: "left", fontSize: 20 }}>
+        {question?.question}
+      </div>
+
+      {/* Description */}
+      <div style={{ marginTop: "4rem" }} className="question-information">
+        <div style={{ textAlign: "left" }}>
+          <p>{question?.description}</p>
+        </div>
+      </div>
+
+      {/* Answer box */}
       <div className="answer-posting">
         <textarea
           rows={4}
           value={userComment}
           placeholder="Type your answer here..."
-          onChange={(e) => setUserComment(e.target.value)}
+          onChange={(e) => {
+            setUserComment(e.target.value);
+            setLlmFeedback(null);
+          }}
         />
-        <button onClick={() => onSubmitQuestionAns()}>
-          Submit your answer
-        </button>
+        <button onClick={onSubmitQuestionAns}>Submit your answer</button>
       </div>
-      <div>
-        {getQuestionDetailsData?.data?.question?.answers?.map((data) => (
-          <div className="comment-section">
-            <div>
-              <img
-                src={userAvatar}
-                alt="userAvatar"
-                style={{
-                  borderRadius: "50%",
-                  width: "50px",
-                  height: "50px",
-                  marginRight: "10px",
-                }}
-              />
+
+      {/* Immediate LLM feedback (if any) */}
+      {llmFeedback && (
+        <div
+          style={{
+            background: "#f9f6f2",
+            border: "2px solid #8B3B0E",
+            borderRadius: 8,
+            padding: "16px 20px",
+            margin: "20px 0 10px",
+            boxShadow: "0 2px 8px rgba(139,59,14,0.08)",
+          }}
+        >
+          <div
+            style={{ fontWeight: 700, color: "#8B3B0E", marginBottom: 6 }}
+          >
+            AI Feedback (Just Submitted)
+          </div>
+          <div style={{ fontSize: 16, marginBottom: 2 }}>
+            <b>Score:</b> {llmFeedback.score} / 10
+          </div>
+          <div style={{ fontSize: 15, marginBottom: 2 }}>
+            <b>Explanation:</b> {llmFeedback.explanation}
+          </div>
+          <div style={{ fontSize: 15 }}>
+            <b>Solution:</b> {llmFeedback.solution}
+          </div>
+        </div>
+      )}
+
+      {/* All existing answers */}
+      {question?.answers?.map((data) => (
+        <div className="comment-section" key={data._id}>
+          <div>
+            <img
+              src={userAvatar}
+              alt="userAvatar"
+              style={{
+                borderRadius: "50%",
+                width: 50,
+                height: 50,
+                marginRight: 10,
+              }}
+            />
+          </div>
+          <div style={{ width: "100%" }}>
+            <div className="comment-header">
+              <div>
+                <b>{data?.student_id?.name}</b>{" "}
+                <span className="header-date">{fullDate(data?.date)}</span>
+              </div>
+              <div className="reactions">
+                {[["like", like], ["love", love], ["care", care], ["laugh", laugh], ["wow", wow], ["sad", sad], ["angry", angry]].map(
+                  ([type, imgSrc]) => (
+                    <button
+                      key={type}
+                      onClick={() => handleReaction(type, data.student_id._id)}
+                    >
+                      <img
+                        src={imgSrc}
+                        alt={type}
+                        style={{
+                          border:
+                            data.reaction === type
+                              ? "2px solid black"
+                              : undefined,
+                          borderRadius:
+                            data.reaction === type ? "50%" : undefined,
+                        }}
+                      />
+                    </button>
+                  )
+                )}
+              </div>
             </div>
-            <div style={{ width: "100%" }}>
-              <div className="comment-header">
+
+            {/* Answer text */}
+            <div className="comment-text">{data.answer}</div>
+
+            {/* ─── Inject each answer’s stored LLM feedback here ─── */}
+            {data.is_correct != null && (
+              <div
+                style={{
+                  background: "#f0f5f9",
+                  border: "1px solid #b3cde0",
+                  borderRadius: 4,
+                  padding: "8px 12px",
+                  marginTop: 8,
+                  fontSize: 14,
+                }}
+              >
                 <div>
-                  <b>{data?.student_id?.name}</b>{" "}
-                  <span className="header-date">{fullDate(data?.date)}</span>
+                  <strong>AI Score:</strong> {data.score} / 10
                 </div>
-                <div className="reactions">
-                  <button
-                    
-                    onClick={() =>
-                      handleReaction("like", data?.student_id?._id)
-                    }
-                  >
-                    <img
-                      src={like}
-                      style={{
-                        border:`${data?.reaction === "like" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "like" ? "50% " : ""}`
-                      }}
-                      alt="like"
-                    />
-                  </button>
-                  <button
-                    
-                    onClick={() =>
-                      handleReaction("love", data?.student_id?._id)
-                    }
-                  >
-                    <img
-                      src={love}
-                      style={{
-                        border:`${data?.reaction === "love" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "love" ? "50% " : ""}`
-
-                      }}
-                      alt="love"
-                    />
-                  </button>
-                  <button
-                    
-                    onClick={() =>
-                      handleReaction("care", data?.student_id?._id)
-                    }
-                  >
-                    <img
-                      src={care}
-                      style={{
-                        border:`${data?.reaction === "care" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "care" ? "50% " : ""}`
-
-                      }}
-                      alt="care"
-                    />
-                  </button>
-                  <button
-                    
-                    onClick={() =>
-                      handleReaction("laugh", data?.student_id?._id)
-                    }
-                  >
-                    <img
-                      src={laugh}
-                      style={{
-                        border:`${data?.reaction === "laugh" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "laugh" ? "50% " : ""}`
-
-                      }}
-                      alt="laugh"
-                    />
-                  </button>
-                  <button
-                  
-                    
-                    onClick={() => handleReaction("wow", data?.student_id?._id)}
-                  >
-                    <img
-                      src={wow}
-                      style={{
-                        border:`${data?.reaction === "wow" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "wow" ? "50% " : ""}`
-
-                      }}
-                      
-                      alt="wow"
-                    />
-                  </button>
-                  <button
-                   
-                    onClick={() => handleReaction("sad", data?.student_id?._id)}
-                  >
-                    <img
-                      src={sad}
-                      style={{
-                        border:`${data?.reaction === "sad" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "sad" ? "50% " : ""}`
-
-                      }}
-                      alt="sad"
-                    />
-                  </button>
-                  <button
-                   
-                    onClick={() =>
-                      handleReaction("angry", data?.student_id?._id)
-                    }
-                  >
-                    <img
-                      src={angry}
-                      style={{
-                        border:`${data?.reaction === "angry" ? "2px solid black " : ""}`,
-                        borderRadius:`${data?.reaction === "angry" ? "50% " : ""}`
-
-                      }}
-                      alt="angry"
-                    />
-                  </button>
+                <div>
+                  <strong>Explanation:</strong> {data.explanation}
+                </div>
+                <div>
+                  <strong>Solution:</strong> {data.solution}
                 </div>
               </div>
-              <div className="comment-text">{data?.answer}</div>
-            </div>
+            )}
+            {/* ────────────────────────────────────────────────────── */}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </Row>
   );
 };
