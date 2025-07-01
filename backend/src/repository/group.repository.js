@@ -191,7 +191,6 @@ const exit_group = async (group_id, student_id) => {
   return group;
 };
 
-// ...other repository functions...
 
 module.exports = {
   findById,

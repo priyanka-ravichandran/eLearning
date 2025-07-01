@@ -89,6 +89,11 @@ const HelpFriendDetails = () => {
     });
   };
 
+  const handleVote = async (voteType, studentId) => {
+  // Call your existing vote_student_answer API
+  // Update the vote count in the UI
+};
+
   const question = getQuestionDetailsData?.data?.question;
 
   return (
@@ -180,77 +185,129 @@ const HelpFriendDetails = () => {
 
       {/* All existing answers */}
       {question?.answers?.map((data) => (
-        <div className="comment-section" key={data._id}>
-          <div>
-            <img
-              src={userAvatar}
-              alt="userAvatar"
-              style={{
-                borderRadius: "50%",
-                width: 50,
-                height: 50,
-                marginRight: 10,
-              }}
-            />
-          </div>
-          <div style={{ width: "100%" }}>
-            <div className="comment-header">
-              <div>
-                <b>{data?.student_id?.name}</b>{" "}
-                <span className="header-date">{fullDate(data?.date)}</span>
+        <div className="answer-container" key={data._id} style={{
+          border: '1px solid #e4e6ea',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          backgroundColor: 'white',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          padding: '16px'
+        }}>
+          {/* Answer content with AI score inline */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            {/* Answer text */}
+            <div style={{
+              fontSize: '15px',
+              lineHeight: '1.5',
+              color: '#232629',
+              flex: 1
+            }}>
+              {data.answer}
+            </div>
+            
+            {/* AI Score badge next to answer */}
+            <div style={{
+              fontSize: '14px',
+              color: '#0074cc',
+              textAlign: 'center',
+              padding: '4px 8px',
+              backgroundColor: '#e1ecf4',
+              borderRadius: '4px',
+              minWidth: '60px',
+              flexShrink: 0
+            }}>
+              <div style={{ fontWeight: 'bold' }}>AI Score</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                {data.score ? `${data.score}/10` : 'N/A'}
               </div>
-              <div className="reactions">
-                {[["like", like], ["love", love], ["care", care], ["laugh", laugh], ["wow", wow], ["sad", sad], ["angry", angry]].map(
-                  ([type, imgSrc]) => (
-                    <button
-                      key={type}
-                      onClick={() => handleReaction(type, data.student_id._id)}
-                    >
-                      <img
-                        src={imgSrc}
-                        alt={type}
-                        style={{
-                          border:
-                            data.reaction === type
-                              ? "2px solid black"
-                              : undefined,
-                          borderRadius:
-                            data.reaction === type ? "50%" : undefined,
-                        }}
-                      />
-                    </button>
-                  )
-                )}
+            </div>
+          </div>
+
+          {/* AI Feedback section (if available) */}
+          {data.is_correct != null && (
+            <div style={{
+              background: '#f0f5f9',
+              border: '1px solid #b3cde0',
+              borderRadius: '6px',
+              padding: '12px',
+              marginBottom: '16px',
+              fontSize: '14px'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#0074cc' }}>
+                AI Analysis
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Explanation:</strong> {data.explanation}
+              </div>
+              <div>
+                <strong>Solution:</strong> {data.solution}
+              </div>
+            </div>
+          )}
+
+          {/* User info and reactions section */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderTop: '1px solid #e4e6ea',
+            paddingTop: '12px'
+          }}>
+            {/* User info */}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <img
+                src={userAvatar}
+                alt="userAvatar"
+                style={{
+                  borderRadius: "50%",
+                  width: 32,
+                  height: 32,
+                  marginRight: 8,
+                }}
+              />
+              <div>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>
+                  {data?.student_id?.name}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6a737c' }}>
+                  answered {fullDate(data?.date)}
+                </div>
               </div>
             </div>
 
-            {/* Answer text */}
-            <div className="comment-text">{data.answer}</div>
-
-            {/* ─── Inject each answer’s stored LLM feedback here ─── */}
-            {data.is_correct != null && (
-              <div
-                style={{
-                  background: "#f0f5f9",
-                  border: "1px solid #b3cde0",
-                  borderRadius: 4,
-                  padding: "8px 12px",
-                  marginTop: 8,
-                  fontSize: 14,
-                }}
-              >
-                <div>
-                  <strong>AI Score:</strong> {data.score} / 10
-                </div>
-                <div>
-                  <strong>Explanation:</strong> {data.explanation}
-                </div>
-                <div>
-                  <strong>Solution:</strong> {data.solution}
-                </div>
-              </div>
-            )}
-            {/* ────────────────────────────────────────────────────── */}
+            {/* Reactions */}
+            <div className="reactions" style={{ display: 'flex', gap: '4px' }}>
+              {[["like", like], ["love", love], ["care", care], ["laugh", laugh], ["wow", wow], ["sad", sad], ["angry", angry]].map(
+                ([type, imgSrc]) => (
+                  <button
+                    key={type}
+                    onClick={() => handleReaction(type, data.student_id._id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '2px'
+                    }}
+                  >
+                    <img
+                      src={imgSrc}
+                      alt={type}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        border: data.reaction === type ? "2px solid #0074cc" : undefined,
+                        borderRadius: data.reaction === type ? "50%" : undefined,
+                      }}
+                    />
+                  </button>
+                )
+              )}
+            </div>
           </div>
         </div>
       ))}

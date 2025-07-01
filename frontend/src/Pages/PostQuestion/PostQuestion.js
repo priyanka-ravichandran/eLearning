@@ -14,7 +14,7 @@ import {
 import { QUESTION_TOPICS } from "../../utils";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import * as tf from '@tensorflow/tfjs';
+// import * as tf from '@tensorflow/tfjs';
 //import webgazer from "../WebGazer";
 import * as tmImage from '@teachablemachine/image';
 var jsonArr = [];

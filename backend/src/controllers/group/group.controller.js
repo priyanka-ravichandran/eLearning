@@ -79,6 +79,7 @@ const exit_group = async (req, res) => {
   try {
     const { group_id, student_id } = req.body;
     await groupRepository.exit_group(group_id, student_id);
+    await Student.findByIdAndUpdate(student_id, { group: null });
     return response(res, 200, true, {}, "Exited group successfully");
   } catch (error) {
     return response(res, 400, false, {}, error.message);

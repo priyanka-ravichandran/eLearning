@@ -25,16 +25,15 @@ if (process.env.NODE_ENV === "production") {
 
 const authRouter = require("./src/routes/auth.routes");
 const studentRouter = require("./src/routes/student.routes");
-const questionRouter = require("./src/routes/question.routes");
 const studentQuestion = require("./src/routes/student_question.routes");
 const groupRouter = require("./src/routes/group.routes");
+const avatarRoutes = require("./src/routes/avatar.routes");
 
 app.use("/auth", authRouter);
 app.use("/student", studentRouter);
-app.use("/question", questionRouter);
 app.use("/student_question", studentQuestion);
 app.use("/group", groupRouter);
-
+app.use("/avatar", avatarRoutes);
 // Serve React build static files
 app.use(express.static(path.join(__dirname, "../frontend/build")));
 
@@ -44,7 +43,6 @@ app.get("*", (req, res) => {
   if (
     req.path.startsWith("/auth") ||
     req.path.startsWith("/student") ||
-    req.path.startsWith("/question") ||
     req.path.startsWith("/student_question") ||
     req.path.startsWith("/group") ||
     req.path.startsWith("/uploads")

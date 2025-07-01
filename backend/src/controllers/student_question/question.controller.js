@@ -10,6 +10,7 @@ const { Message } = require("../../utils/Message");
 // Create a new question
 const post_a_question = async (req, res) => {
   const { question, description, topic, points, student_id } = req.body;
+  const POINTS_FOR_POSTING = 5;
 
   try {
     const question_result = await questionRepository.post_a_question(
@@ -18,6 +19,12 @@ const post_a_question = async (req, res) => {
       topic,
       points,
       student_id
+    );
+     await studentRepo.update_student_points(
+      student_id,
+      POINTS_FOR_POSTING,
+      "credit",
+      "Posted a question"
     );
     if (!question_result) {
       return response(

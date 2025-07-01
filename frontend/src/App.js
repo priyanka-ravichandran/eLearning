@@ -7,7 +7,6 @@ import Login from "./Pages/Auth/Login/Login";
 import LandingPage from "./Pages/LandingPage/LandingPage";
 import { Provider } from "react-redux";
 import store, { persistor } from "./redux/store";
-import HomePage from "./Pages/Home/HomePage";
 import HelpFriend from "./Pages/HelpFriend/HelpFriend";
 import HelpFriendDetails from "./Pages/HelpFriend/HelpFriendDetails";
 import QuestionOfTheDayDetail from "./Pages/QuestionOfTheDay/QuestionOfTheDayDetail";

@@ -15,46 +15,55 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 async function verifyAnswerWithLLM(qText, correctAns = "", studentAns = "") {
   // 1) Solve yourself, 2) extract student number, 3) compare & deduct for missing steps
   const prompt = `
-You are an experienced math teacher.  Here is a one-line equation and a student's answer.
+You are a veteran teacher and examiner for high-school and early-university courses
+(Math, Physics, Chemistry, Economics, Biology, etc.).
 
-Equation: ${qText}
-Correct Answer (for reference): ${correctAns || "N/A"}
-Student's Answer (raw): ${studentAns}
+--------------------------------------------
+QUESTION:       ${qText}
+OFFICIAL ANSWER: ${correctAns || "N/A"}
+STUDENT ANSWER: ${studentAns}
+--------------------------------------------
 
-TASK:
+TASKS
+=====
 
-1) Solve the equation yourself, showing every single algebraic manipulation as separate lines:
-   e.g. 
-     2x = 5 - 4
-     2x = 1
-     x = 1/2
-   Conclude with: Therefore, x = <your result>.
+1. **Write a complete, authoritative solution** to the question, in your own words,
+   showing every meaningful step. Put each logical step on its own line and finish
+   with a clear statement of the final result (e.g. “Therefore, ΔG = −12.5 kJ”).
 
-2) From the student's raw answer, extract just the numeric part (it could be "1/2", "0.5", etc.) and convert to a single decimal or fraction.
+2. **Extract the student’s final numeric or key phrase answer**, reducing fractions
+   if needed or leaving textual responses as-is (“chloroplast”, “29 N”, etc.).
 
-3) If the student's number equals your computed result:
-     - is_correct = true
-     - score = 10
-     - explanation = "Perfect answer."
-   Otherwise:
-     - is_correct = false
-     - score = 0
-     - explanation = "Student's numeric answer is incorrect."
+3. **Assess correctness.**
+      • If the student’s extracted answer exactly matches your final result
+        (numeric equality within ±0.01 or case-insensitive text match),  
+        *Content Accuracy = 6 points*.  
+      • Otherwise, give between 0 – 5 points based on how close or conceptually
+        sound their answer is (explain why).
 
-4) Next, count how many lines of work **you** wrote in step 1 (excluding the final summary line).  
-   Count how many lines of work the **student** showed (by detecting line-breaks or explicit equalities).  
-   For each line the student **did not** include that you did, deduct 2 points (minimum score = 0).
+4. **Assess the amount of work shown.**
+      • Count your own work lines from step 1 (exclude the final “Therefore” line).  
+      • Count the student’s work lines (split on line-breaks or “=” / “→”).  
+      • Work Shown = 4 − 2 × (max(0, yourLines − studentLines)).  
+        Clamp at 0 and 4.
 
-5) If the student wrote no intermediate lines at all but did get the number right, deduct 2 points for “missing intermediate steps.”  
+5. **Total score = Content Accuracy + Work Shown** (0 – 10).
 
-OUTPUT **only** valid JSON with exactly these four keys:
+6. Write a short explanation listing every deduction, separated by semicolons.
+   Examples:  
+     “Numeric answer off by 8 %; missing derivation of k; showed 1/3 required steps”
+
+OUTPUT
+======
+
+Respond **ONLY** with valid JSON:
+
 {
-  "is_correct": <true|false>,
-  "score": <integer between 0 and 10>,
+  "is_correct": <true|false>,          // true if Content Accuracy == 6
+  "score": <integer 0-10>,             // Content Accuracy + Work Shown
   "explanation": "<semicolon-separated deductions>",
-  "solution": "<your full worked step-by-step solution ending with 'Therefore, x = …'>"
-}
-`.trim();
+  "solution": "<your full worked solution ending with the final result>"
+}`.trim();
 
   const completion = await openai.chat.completions.create({
     model: "gpt-3.5-turbo",
@@ -97,7 +106,7 @@ module.exports = {
       due_date: { $gte: start_date, $lte: end_date }
     });
     return {
-      day: qs.filter(q => q.question_type === "day").sort((a,b)=>a.due_date-b.due_date),
+      day: qs.filter(q => q.question_type === "day").sort((a, b) => a.due_date - b.due_date),
       week: qs.find(q => q.question_type === "week") || {}
     };
   },
@@ -129,11 +138,11 @@ module.exports = {
     const llm = await verifyAnswerWithLLM(q.question, q.correct_answer || "", answer);
 
     Object.assign(q.answers[idx], {
-      is_correct:   llm.is_correct,
-      score:        llm.score,
-      explanation:  llm.explanation,
-      solution:     llm.solution,
-      verified:     true,
+      is_correct: llm.is_correct,
+      score: llm.score,
+      explanation: llm.explanation,
+      solution: llm.solution,
+      verified: true,
       points_earned: llm.score
     });
 

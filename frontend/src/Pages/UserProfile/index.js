@@ -21,25 +21,75 @@ const UserProfile = () => {
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState("");
-  // Create group form
   const [groupName, setGroupName] = useState("");
-  // Join group form
   const [joinCode, setJoinCode] = useState("");
   const [groupId, setGroupId] = useState(() => localStorage.getItem("group_id"));
   const [groupDetails, setGroupDetails] = useState(null);
 
+  // Helper: Refresh student details from backend and update state/localStorage
+  const refreshStudentDetails = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/student/get_student_details`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentDetails.student._id }),
+      });
+      const data = await res.json();
+      if (data.status && data.data && data.data.student) {
+        const newStudentDetails = { student: data.data.student };
+        localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
+        setStudentDetails(newStudentDetails);
+        
+        // Update avatar data
+        updateAvatarData(newStudentDetails);
+      }
+    } catch (err) {
+      // Optionally handle error
+    }
+  };
+
+  // Update avatar data when student details change
+  useEffect(() => {
+    if (studentDetails?.student) {
+      updateAvatarData(studentDetails);
+      console.log('Student Details Avatar:', studentDetails.student.avatar);
+      console.log('User Points:', studentDetails.student.current_points);
+    }
+  }, [studentDetails, updateAvatarData]);
+
   // Fetch latest student details on mount
   useEffect(() => {
-    fetchStudentDetails();
+    // On mount, always fetch latest student details from backend and update state/localStorage
+    const fetchAndSyncStudent = async () => {
+      const student_details_local = JSON.parse(localStorage.getItem("student_details"));
+      if (student_details_local && student_details_local.student && student_details_local.student._id) {
+        try {
+          const res = await fetch(`${API_BASE}/student/get_student_details`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ student_id: student_details_local.student._id }),
+          });
+          const data = await res.json();
+          if (data.status && data.data && data.data.student) {
+            const newStudentDetails = { student: data.data.student };
+            localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
+            setStudentDetails(newStudentDetails);
+          }
+        } catch (err) {
+          // Optionally handle error
+        }
+      }
+    };
+    fetchAndSyncStudent();
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     // Always sync groupId from backend studentDetails
-    if (studentDetails && studentDetails.group && studentDetails.group._id) {
-      if (groupId !== studentDetails.group._id) {
-        setGroupId(studentDetails.group._id);
-        localStorage.setItem("group_id", studentDetails.group._id);
+    if (studentDetails && studentDetails.student && studentDetails.student.group && studentDetails.student.group._id) {
+      if (groupId !== studentDetails.student.group._id) {
+        setGroupId(studentDetails.student.group._id);
+        localStorage.setItem("group_id", studentDetails.student.group._id);
       }
     } else {
       setGroupId(null);
@@ -74,6 +124,7 @@ const UserProfile = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: student_details_local.student._id }),
       });
+      // Optionally update studentDetails here if needed
     } catch (err) {
       setError("Failed to fetch profile.");
       setShowError(true);
@@ -99,7 +150,6 @@ const UserProfile = () => {
           setError("Group details are not accessible.");
           setShowError(true);
         } else {
-          console.log("Group data received:", data.data.group);
           setGroupDetails(data.data.group);
           setError("");
           setShowError(false);
@@ -148,6 +198,7 @@ const UserProfile = () => {
         }
         setGroupName("");
         setActiveTab("group");
+        await refreshStudentDetails(); // <-- Refresh student details
       } else {
         setError(data.message || "Failed to create group.");
         setShowError(true);
@@ -187,6 +238,7 @@ const UserProfile = () => {
         }
         setJoinCode("");
         setActiveTab("group");
+        await refreshStudentDetails(); // <-- Refresh student details
       } else {
         setError(data.message || "Failed to join group.");
         setShowError(true);
@@ -221,6 +273,7 @@ const UserProfile = () => {
         setGroupId(null);
         setGroupDetails(null);
         setActiveTab("profile");
+        await refreshStudentDetails(); // <-- Refresh student details
       } else {
         setError(data.message || "Failed to exit group.");
         setShowError(true);
@@ -240,46 +293,47 @@ const UserProfile = () => {
     }
   };
 
-const handleSendEmail = () => {
-  if (!groupDetails?.code) return;
+  const handleSendEmail = () => {
+    if (!groupDetails?.code) return;
 
-  const subject = 'Join my group on eLearning!';
-  const body = `Join "${groupDetails.name}" using passcode: ${groupDetails.code}`;
-  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const subject = 'Join my group on eLearning!';
+    const body = `Join "${groupDetails.name}" using passcode: ${groupDetails.code}`;
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-  // Track if email client launched successfully
-  let emailLaunched = false;
+    // Track if email client launched successfully
+    let emailLaunched = false;
 
-  // Method 1: Direct window.location (works in most cases)
-  try {
-    window.location.href = mailtoUrl;
-    emailLaunched = true;
-  } catch (e) {
-    console.log("Direct method failed", e);
-  }
-
-  // Method 2: Iframe fallback with longer timeout
-  setTimeout(() => {
-    if (!emailLaunched) {
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = mailtoUrl;
-      document.body.appendChild(iframe);
-      
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        
-        // Only show error if nothing happened after 3 seconds total
-        if (!emailLaunched) {
-          navigator.clipboard.writeText(`${subject}\n\n${body}`);
-          setShowCopied(true);
-          setError('Email client not responding - invitation copied to clipboard');
-          setShowError(true);
-        }
-      }, 2000); // Additional 2 seconds for iframe method
+    // Method 1: Direct window.location (works in most cases)
+    try {
+      window.location.href = mailtoUrl;
+      emailLaunched = true;
+    } catch (e) {
+      console.log("Direct method failed", e);
     }
-  }, 1000); // Initial 1 second delay
-};
+
+    // Method 2: Iframe fallback with longer timeout
+    setTimeout(() => {
+      if (!emailLaunched) {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = mailtoUrl;
+        document.body.appendChild(iframe);
+
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+
+          // Only show error if nothing happened after 3 seconds total
+          if (!emailLaunched) {
+            navigator.clipboard.writeText(`${subject}\n\n${body}`);
+            setShowCopied(true);
+            setError('Email client not responding - invitation copied to clipboard');
+            setShowError(true);
+          }
+        }, 2000); // Additional 2 seconds for iframe method
+      }
+    }, 1000); // Initial 1 second delay
+  };
+
   // Helper: Render group members
   const renderGroupMembers = (members) =>
     members.map((m, idx) => (
@@ -291,312 +345,311 @@ const handleSendEmail = () => {
 
   return (
     <>
-    <div className="container py-5" style={{ maxWidth: 800 }}>
-      <Card className="shadow-lg rounded-4 p-4">
-        <Tab.Container activeKey={activeTab} onSelect={setActiveTab}>
-          <Nav variant="tabs" className="mb-4">
-            <Nav.Item>
-              <Nav.Link eventKey="profile" className="fw-bold">
-                Profile
-              </Nav.Link>
-            </Nav.Item>
-            <Nav.Item>
-              <Nav.Link eventKey="group" className="fw-bold">
-                Group
-              </Nav.Link>
-            </Nav.Item>
-          </Nav>
-          <Tab.Content>
-            {/* Profile Tab */}
-            <Tab.Pane eventKey="profile">
-              <Row className="align-items-center">
-                <Col xs={12} md={4} className="text-center mb-3">
+      <div className="container py-5" style={{ maxWidth: 800 }}>
+        <Card className="shadow-lg rounded-4 p-4">
+          <Tab.Container activeKey={activeTab} onSelect={setActiveTab}>
+            <Nav variant="tabs" className="mb-4">
+              <Nav.Item>
+                <Nav.Link eventKey="profile" className="fw-bold">
+                  Profile
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="group" className="fw-bold">
+                  Group
+                </Nav.Link>
+              </Nav.Item>
+            </Nav>
+            <Tab.Content>
+              {/* Profile Tab - Updated with Avatar */}
+              <Tab.Pane eventKey="profile">
+                <Row className="align-items-center">
+                  <Col xs={12} md={4} className="text-center mb-3">
                   <Avatar
                     name={studentDetails?.student?.name || "User"}
                     size="90"
                     round
                     color="#267c5d"
-                  />
-                  <h5 className="mt-3 mb-0 fw-bold">
-                    {studentDetails?.student?.name}
-                  </h5>
-                  <div className="text-muted">{studentDetails?.student?.email}</div>
-                </Col>
-                <Col xs={12} md={8}>
-                  <Row className="mb-2">
-                    <Col xs={6}>
-                      <div className="text-secondary small">Grade</div>
-                      <div className="fw-semibold">{studentDetails?.student?.grade}</div>
-                    </Col>
-                    <Col xs={6}>
-                      <div className="text-secondary small">Individual Rank</div>
-                      <div className="fw-semibold">{studentDetails?.student?.individual_rank ?? "-"}</div>
-                    </Col>
-                  </Row>
-                  <Row className="mb-2">
-                    <Col xs={6}>
-                      <div className="text-secondary small">Current Points</div>
+                    />
+                    <h5 className="mt-3 mb-0 fw-bold">
+                      {studentDetails?.student?.name}
+                    </h5>
+                    <div className="text-muted">{studentDetails?.student?.email}</div>
+                  </Col>
+                  <Col xs={12} md={8}>
+                    <Row className="mb-2">
+                      <Col xs={6}>
+                        <div className="text-secondary small">Grade</div>
+                        <div className="fw-semibold">{studentDetails?.student?.grade}</div>
+                      </Col>
+                      <Col xs={6}>
+                        <div className="text-secondary small">Individual Rank</div>
+                        <div className="fw-semibold">{studentDetails?.student?.individual_rank ?? "-"}</div>
+                      </Col>
+                    </Row>
+                    <Row className="mb-2">
+                      <Col xs={6}>
+                        <div className="text-secondary small">Current Points</div>
                       <div className="fw-semibold">{studentDetails?.student?.current_points}</div>
-                    </Col>
-                    <Col xs={6}>
-                      <div className="text-secondary small">Total Points Earned</div>
-                      <div className="fw-semibold">{studentDetails?.student?.total_points_earned}</div>
-                    </Col>
-                  </Row>
-                </Col>
-              </Row>
-            </Tab.Pane>
+                      </Col>
+                      <Col xs={6}>
+                        <div className="text-secondary small">Total Points Earned</div>
+                        <div className="fw-semibold">{studentDetails?.student?.total_points_earned}</div>
+                      </Col>
+                    </Row>
+                  </Col>
+                </Row>
+              </Tab.Pane>
 
-            {/* Group Tab */}
-            <Tab.Pane eventKey="group">
-              {loading ? (
-                <div className="text-center py-5">
-                  <Spinner animation="border" variant="success" />
-                </div>
-              ) : (
-                <>
-                  {/* If user is in a group */}
-                  {groupDetails ? (
-                    <Card className="mt-2 shadow-sm border-0">
-                      <Card.Body>
-                        <div className="d-flex align-items-center mb-3 justify-content-between">
-                          <div className="d-flex align-items-center">
-                            <Avatar
-                              name={groupDetails.name ? groupDetails.name : `Group ${groupDetails.group_no}`}
-                              size="64"
-                              round
-                              color="#b2dfdb"
-                              fgColor="#267c5d"
-                            />
-                            <div className="ms-3">
-                              <h5 className="mb-1 fw-bold">
-                                {groupDetails.name ? groupDetails.name : `Group #${groupDetails.group_no}`}
-                              </h5>
-                              <div className="text-muted small">
-                                Village Level: {groupDetails.village_level}
+              {/* Group Tab - Remains exactly the same */}
+              <Tab.Pane eventKey="group">
+                {loading ? (
+                  <div className="text-center py-5">
+                    <Spinner animation="border" variant="success" />
+                  </div>
+                ) : (
+                  <>
+                    {groupDetails ? (
+                      <Card className="mt-2 shadow-sm border-0">
+                        <Card.Body>
+                          <div className="d-flex align-items-center mb-3 justify-content-between">
+                            <div className="d-flex align-items-center">
+                              <Avatar
+                                name={groupDetails.name ? groupDetails.name : `Group ${groupDetails.group_no}`}
+                                size="64"
+                                round
+                                color="#b2dfdb"
+                                fgColor="#267c5d"
+                              />
+                              <div className="ms-3">
+                                <h5 className="mb-1 fw-bold">
+                                  {groupDetails.name ? groupDetails.name : `Group #${groupDetails.group_no}`}
+                                </h5>
+                                <div className="text-muted small">
+                                  Village Level: {groupDetails.village_level}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-end">
+                              <div className="text-secondary small mt-1 d-flex align-items-center">
+                                <strong>Passcode:</strong> <span className="fw-semibold ms-1">{groupDetails.code}</span>
+                                <button
+                                  className="btn btn-link p-0 ms-2"
+                                  title="Copy passcode"
+                                  style={{ fontSize: '1.2rem' }}
+                                  onClick={handleSharePasscode}
+                                >
+                                  {/* Inline SVG clipboard icon */}
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M10 1.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 1 .5.5V14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 0 .5-.5v-1A.5.5 0 0 1 7.5 1h1A.5.5 0 0 1 10 1.5zm-1 0a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 1-.5.5h-1A1.5 1.5 0 0 0 3 3.5V14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3.5A1.5 1.5 0 0 0 12.5 2h-1a.5.5 0 0 1-.5-.5v-1z"/>
+                                  </svg>
+                                </button>
+                                <button
+                                  className="btn btn-link p-0 ms-2"
+                                  title="Invite via Email"
+                                  style={{ fontSize: '1.2rem' }}
+                                  onClick={handleSendEmail}
+                                >
+                                  {/* Inline SVG email icon */}
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.383V5.383zm-.034 7.434-5.482-3.29-5.482 3.29A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.183zM1 11.383l4.708-2.825L1 5.383v6z"/>
+                                  </svg>
+                                </button>
                               </div>
                             </div>
                           </div>
-                          <div className="text-end">
-                            <div className="text-secondary small mt-1 d-flex align-items-center">
-                              <strong>Passcode:</strong> <span className="fw-semibold ms-1">{groupDetails.code}</span>
-                              <button
-                                className="btn btn-link p-0 ms-2"
-                                title="Copy passcode"
-                                style={{ fontSize: '1.2rem' }}
-                                onClick={handleSharePasscode}
-                              >
-                                {/* Inline SVG clipboard icon */}
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                                  <path d="M10 1.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 1 .5.5V14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 0 .5-.5v-1A.5.5 0 0 1 7.5 1h1A.5.5 0 0 1 10 1.5zm-1 0a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 1-.5.5h-1A1.5 1.5 0 0 0 3 3.5V14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3.5A1.5 1.5 0 0 0 12.5 2h-1a.5.5 0 0 1-.5-.5v-1z"/>
-                                </svg>
-                              </button>
-                              <button
-                                className="btn btn-link p-0 ms-2"
-                                title="Invite via Email"
-                                style={{ fontSize: '1.2rem' }}
-                                onClick={handleSendEmail}
-                              >
-                                {/* Inline SVG email icon */}
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                                  <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.383V5.383zm-.034 7.434-5.482-3.29-5.482 3.29A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.183zM1 11.383l4.708-2.825L1 5.383v6z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <Row className="mb-2">
-                          <Col xs={6}>
-                            <div className="text-secondary small">Group Rank</div>
-                            <div className="fw-semibold">{groupDetails.group_rank ?? "-"}</div>
-                          </Col>
-                          <Col xs={6}>
-                            <div className="text-secondary small">Current Points</div>
-                            <div className="fw-semibold">{groupDetails.current_points}</div>
-                          </Col>
-                        </Row>
-                        <Row className="mb-2">
-                          <Col xs={6}>
-                            <div className="text-secondary small">Total Points Earned</div>
-                            <div className="fw-semibold">{groupDetails.total_points_earned}</div>
-                          </Col>
-                          <Col xs={6}>
-                            <div className="text-secondary small">Village Level</div>
-                            <div className="fw-semibold">{groupDetails.village_level}</div>
-                          </Col>
-                        </Row>
-                        <div className="mb-2">
-                          <div className="text-secondary small mb-1">Team Members</div>
-                          {groupDetails.team_members && groupDetails.team_members.length > 0 ? (
-                            <div className="table-responsive">
-                              <table className="table table-sm table-bordered align-middle mb-0">
-                                <thead className="table-light">
-                                  <tr>
-                                    <th className="text-center" style={{ width: '40px' }}>#</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {groupDetails.team_members.map((member, idx) => (
-                                    <tr key={member._id}>
-                                      <td className="text-center">{idx + 1}</td>
-                                      <td>{member.name}</td>
-                                      <td>{member.email}</td>
+                          <Row className="mb-2">
+                            <Col xs={6}>
+                              <div className="text-secondary small">Group Rank</div>
+                              <div className="fw-semibold">{groupDetails.group_rank ?? "-"}</div>
+                            </Col>
+                            <Col xs={6}>
+                              <div className="text-secondary small">Current Points</div>
+                              <div className="fw-semibold">{groupDetails.current_points}</div>
+                            </Col>
+                          </Row>
+                          <Row className="mb-2">
+                            <Col xs={6}>
+                              <div className="text-secondary small">Total Points Earned</div>
+                              <div className="fw-semibold">{groupDetails.total_points_earned}</div>
+                            </Col>
+                            <Col xs={6}>
+                              <div className="text-secondary small">Village Level</div>
+                              <div className="fw-semibold">{groupDetails.village_level}</div>
+                            </Col>
+                          </Row>
+                          <div className="mb-2">
+                            <div className="text-secondary small mb-1">Team Members</div>
+                            {groupDetails.team_members && groupDetails.team_members.length > 0 ? (
+                              <div className="table-responsive">
+                                <table className="table table-sm table-bordered align-middle mb-0">
+                                  <thead className="table-light">
+                                    <tr>
+                                      <th className="text-center" style={{ width: '40px' }}>#</th>
+                                      <th>Name</th>
+                                      <th>Email</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <span>No members</span>
-                          )}
-                        </div>
-                        <Button
-                          variant="danger"
-                          className="mt-3"
-                          onClick={handleExitGroup}
-                          disabled={groupActionLoading}
-                        >
-                          {groupActionLoading ? (
-                            <Spinner size="sm" animation="border" />
-                          ) : (
-                            "Exit Group"
-                          )}
-                        </Button>
-                      </Card.Body>
-                    </Card>
-                  ) : (
-                    // If user is not in a group: show create/join
-                    <Row>
-                      <Col md={6} className="mb-4">
-                        <Card className="shadow-sm border-0">
-                          <Card.Body>
-                            <h5 className="fw-bold mb-3">Create Group</h5>
-                            <Form onSubmit={handleCreateGroup}>
-                              <Form.Group className="mb-3">
-                                <Form.Label>Group Name</Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  placeholder="Enter group name"
-                                  value={groupName}
-                                  onChange={(e) => setGroupName(e.target.value)}
-                                  required
-                                />
-                              </Form.Group>
-                              <Button
-                                variant="success"
-                                type="submit"
-                                className="w-100"
-                                disabled={groupActionLoading}
-                              >
-                                {groupActionLoading ? (
-                                  <Spinner size="sm" animation="border" />
-                                ) : (
-                                  "Create Group"
-                                )}
-                              </Button>
-                            </Form>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                      <Col md={6} className="mb-4">
-                        <Card className="shadow-sm border-0">
-                          <Card.Body>
-                            <h5 className="fw-bold mb-3">Join Group</h5>
-                            <Form onSubmit={handleJoinGroup}>
-                              <Form.Group className="mb-3">
-                                <Form.Label>Group Code</Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  placeholder="Enter group code"
-                                  value={joinCode}
-                                  onChange={(e) => setJoinCode(e.target.value)}
-                                  required
-                                />
-                              </Form.Group>
-                              <Button
-                                variant="primary"
-                                type="submit"
-                                className="w-100"
-                                disabled={groupActionLoading}
-                              >
-                                {groupActionLoading ? (
-                                  <Spinner size="sm" animation="border" />
-                                ) : (
-                                  "Join Group"
-                                )}
-                              </Button>
-                            </Form>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    </Row>
-                  )}
-                </>
-              )}
-            </Tab.Pane>
-          </Tab.Content>
-        </Tab.Container>
-      </Card>
-    </div>
-    <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
-      <Toast
-        bg="danger"
-        show={showError}
-        onClose={() => setShowError(false)}
-        delay={4000}
-        autohide
-      >
-        <Toast.Header>
-          <strong className="me-auto text-danger">Error</strong>
-        </Toast.Header>
-        <Toast.Body className="text-white">{error}</Toast.Body>
-      </Toast>
-      <Toast
-        bg="success"
-        show={showSuccess}
-        onClose={() => setShowSuccess(false)}
-        delay={3000}
-        autohide
-      >
-        <Toast.Header>
-          <strong className="me-auto text-success">Success</strong>
-        </Toast.Header>
-        <Toast.Body className="text-white">{success}</Toast.Body>
-      </Toast>
-      <Toast
-        bg="info"
-        show={showCopied}
-        onClose={() => setShowCopied(false)}
-        delay={1500}
-        autohide
-        style={{ position: 'fixed', top: 80, right: 30, zIndex: 99999 }}
-      >
-        <Toast.Body className="text-white">Passcode copied!</Toast.Body>
-      </Toast>
-      <Toast
-        bg="info"
-        show={emailSent}
-        onClose={() => setEmailSent(false)}
-        delay={1500}
-        autohide
-        style={{ position: 'fixed', top: 120, right: 30, zIndex: 99999 }}
-      >
-        <Toast.Body className="text-white">Passcode sent via email!</Toast.Body>
-      </Toast>
-      <Toast
-        bg="danger"
-        show={!!emailError}
-        onClose={() => setEmailError("")}
-        delay={2000}
-        autohide
-        style={{ position: 'fixed', top: 160, right: 30, zIndex: 99999 }}
-      >
-        <Toast.Body className="text-white">{emailError}</Toast.Body>
-      </Toast>
-    </ToastContainer>
-  </>
+                                  </thead>
+                                  <tbody>
+                                    {groupDetails.team_members.map((member, idx) => (
+                                      <tr key={member._id}>
+                                        <td className="text-center">{idx + 1}</td>
+                                        <td>{member.name}</td>
+                                        <td>{member.email}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <span>No members</span>
+                            )}
+                          </div>
+                          <Button
+                            variant="danger"
+                            className="mt-3"
+                            onClick={handleExitGroup}
+                            disabled={groupActionLoading}
+                          >
+                            {groupActionLoading ? (
+                              <Spinner size="sm" animation="border" />
+                            ) : (
+                              "Exit Group"
+                            )}
+                          </Button>
+                        </Card.Body>
+                      </Card>
+                    ) : (
+                      // If user is not in a group: show create/join
+                      <Row>
+                        <Col md={6} className="mb-4">
+                          <Card className="shadow-sm border-0">
+                            <Card.Body>
+                              <h5 className="fw-bold mb-3">Create Group</h5>
+                              <Form onSubmit={handleCreateGroup}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label>Group Name</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    placeholder="Enter group name"
+                                    value={groupName}
+                                    onChange={(e) => setGroupName(e.target.value)}
+                                    required
+                                  />
+                                </Form.Group>
+                                <Button
+                                  variant="success"
+                                  type="submit"
+                                  className="w-100"
+                                  disabled={groupActionLoading}
+                                >
+                                  {groupActionLoading ? (
+                                    <Spinner size="sm" animation="border" />
+                                  ) : (
+                                    "Create Group"
+                                  )}
+                                </Button>
+                              </Form>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                        <Col md={6} className="mb-4">
+                          <Card className="shadow-sm border-0">
+                            <Card.Body>
+                              <h5 className="fw-bold mb-3">Join Group</h5>
+                              <Form onSubmit={handleJoinGroup}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label>Group Code</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    placeholder="Enter group code"
+                                    value={joinCode}
+                                    onChange={(e) => setJoinCode(e.target.value)}
+                                    required
+                                  />
+                                </Form.Group>
+                                <Button
+                                  variant="primary"
+                                  type="submit"
+                                  className="w-100"
+                                  disabled={groupActionLoading}
+                                >
+                                  {groupActionLoading ? (
+                                    <Spinner size="sm" animation="border" />
+                                  ) : (
+                                    "Join Group"
+                                  )}
+                                </Button>
+                              </Form>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                      </Row>
+                    )}
+                  </>
+                )}
+              </Tab.Pane>
+            </Tab.Content>
+          </Tab.Container>
+        </Card>
+      </div>
+      <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+        <Toast
+          bg="danger"
+          show={showError}
+          onClose={() => setShowError(false)}
+          delay={4000}
+          autohide
+        >
+          <Toast.Header>
+            <strong className="me-auto text-danger">Error</strong>
+          </Toast.Header>
+          <Toast.Body className="text-white">{error}</Toast.Body>
+        </Toast>
+        <Toast
+          bg="success"
+          show={showSuccess}
+          onClose={() => setShowSuccess(false)}
+          delay={3000}
+          autohide
+        >
+          <Toast.Header>
+            <strong className="me-auto text-success">Success</strong>
+          </Toast.Header>
+          <Toast.Body className="text-white">{success}</Toast.Body>
+        </Toast>
+        <Toast
+          bg="info"
+          show={showCopied}
+          onClose={() => setShowCopied(false)}
+          delay={1500}
+          autohide
+          style={{ position: 'fixed', top: 80, right: 30, zIndex: 99999 }}
+        >
+          <Toast.Body className="text-white">Passcode copied!</Toast.Body>
+        </Toast>
+        <Toast
+          bg="info"
+          show={emailSent}
+          onClose={() => setEmailSent(false)}
+          delay={1500}
+          autohide
+          style={{ position: 'fixed', top: 120, right: 30, zIndex: 99999 }}
+        >
+          <Toast.Body className="text-white">Passcode sent via email!</Toast.Body>
+        </Toast>
+        <Toast
+          bg="danger"
+          show={!!emailError}
+          onClose={() => setEmailError("")}
+          delay={2000}
+          autohide
+          style={{ position: 'fixed', top: 160, right: 30, zIndex: 99999 }}
+        >
+          <Toast.Body className="text-white">{emailError}</Toast.Body>
+        </Toast>
+      </ToastContainer>
+    </>
   );
 };
 
