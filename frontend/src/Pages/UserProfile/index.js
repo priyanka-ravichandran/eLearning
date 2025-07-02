@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, Button, Tab, Nav, Form, Row, Col, Alert, Spinner, Toast, ToastContainer } from "react-bootstrap";
 import Avatar from "react-avatar";
+import AvatarShop from "../../components/AvatarShop";
+import EmojiReactionsMock from "../../components/EmojiReactions/EmojiReactionsMock";
 import "./index.css";
 
 const API_BASE = "http://localhost:3000";
@@ -25,6 +27,26 @@ const UserProfile = () => {
   const [joinCode, setJoinCode] = useState("");
   const [groupId, setGroupId] = useState(() => localStorage.getItem("group_id"));
   const [groupDetails, setGroupDetails] = useState(null);
+  const [showAvatarShop, setShowAvatarShop] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  // Update avatar data when student details change
+  const updateAvatarData = useCallback((studentData) => {
+    if (studentData?.student?.avatar) {
+      const avatar = studentData.student.avatar;
+      const baseUrl = 'https://api.dicebear.com/9.x/personas/svg';
+      const params = new URLSearchParams();
+      
+      if (avatar.seed) params.append('seed', avatar.seed);
+      if (avatar.hair) params.append('hair', avatar.hair);
+      if (avatar.eyes) params.append('eyes', avatar.eyes);
+      if (avatar.facialHair) params.append('facialHair', avatar.facialHair);
+      if (avatar.mouth) params.append('mouth', avatar.mouth);
+      if (avatar.body) params.append('body', avatar.body);
+      
+      setAvatarUrl(`${baseUrl}?${params.toString()}`);
+    }
+  }, []);
 
   // Helper: Refresh student details from backend and update state/localStorage
   const refreshStudentDetails = async () => {
@@ -37,6 +59,9 @@ const UserProfile = () => {
       const data = await res.json();
       if (data.status && data.data && data.data.student) {
         const newStudentDetails = { student: data.data.student };
+        console.log('Updated student details from backend:', data.data.student);
+        console.log('Current Points:', data.data.student.current_points);
+        console.log('Total Points Earned:', data.data.student.total_points_earned);
         localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
         setStudentDetails(newStudentDetails);
         
@@ -365,16 +390,54 @@ const UserProfile = () => {
               <Tab.Pane eventKey="profile">
                 <Row className="align-items-center">
                   <Col xs={12} md={4} className="text-center mb-3">
-                  <Avatar
-                    name={studentDetails?.student?.name || "User"}
-                    size="90"
-                    round
-                    color="#267c5d"
-                    />
-                    <h5 className="mt-3 mb-0 fw-bold">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="User Avatar"
+                        style={{
+                          width: "90px",
+                          height: "90px",
+                          borderRadius: "50%",
+                          border: "3px solid #267c5d",
+                          objectFit: "cover"
+                        }}
+                      />
+                    ) : (
+                      <Avatar
+                        name={studentDetails?.student?.name || "User"}
+                        size="90"
+                        round
+                        color="#267c5d"
+                      />
+                    )}
+                    <h5 className="mt-3 mb-2 fw-bold">
                       {studentDetails?.student?.name}
                     </h5>
-                    <div className="text-muted">{studentDetails?.student?.email}</div>
+                    <div className="text-muted mb-3">{studentDetails?.student?.email}</div>
+                    <Button 
+                      variant="primary" 
+                      size="sm"
+                      onClick={() => setShowAvatarShop(true)}
+                      className="customize-avatar-btn"
+                    >
+                      🎭 Customize Avatar
+                    </Button>
+                    
+                    {/* Demo Emoji Reactions */}
+                    <div className="mt-3">
+                      <div className="text-muted small mb-2">React to your profile:</div>
+                      <EmojiReactionsMock
+                        postId={`profile-${studentDetails?.student?._id}`}
+                        postType="profile"
+                        currentUserId={studentDetails?.student?._id}
+                        initialReactions={{ like: 5, love: 3, wow: 2 }}
+                        showCounts={true}
+                        size="md"
+                        onReactionUpdate={(reactions) => {
+                          console.log('Profile reactions updated:', reactions);
+                        }}
+                      />
+                    </div>
                   </Col>
                   <Col xs={12} md={8}>
                     <Row className="mb-2">
@@ -390,7 +453,7 @@ const UserProfile = () => {
                     <Row className="mb-2">
                       <Col xs={6}>
                         <div className="text-secondary small">Current Points</div>
-                      <div className="fw-semibold">{studentDetails?.student?.current_points}</div>
+                        <div className="fw-semibold">{studentDetails?.student?.current_points}</div>
                       </Col>
                       <Col xs={6}>
                         <div className="text-secondary small">Total Points Earned</div>
@@ -649,6 +712,14 @@ const UserProfile = () => {
           <Toast.Body className="text-white">{emailError}</Toast.Body>
         </Toast>
       </ToastContainer>
+
+      {/* Avatar Shop Modal */}
+      <AvatarShop
+        show={showAvatarShop}
+        onHide={() => setShowAvatarShop(false)}
+        studentDetails={studentDetails}
+        onAvatarUpdate={refreshStudentDetails}
+      />
     </>
   );
 };

@@ -51,6 +51,52 @@ const StudentSchema = new Schema(
         points: Number,
       },
     ],
+    avatar: {
+      seed: {
+        type: String,
+        default: "sarah",
+      },
+      hair: {
+        type: String,
+        default: null,
+      },
+      eyes: {
+        type: String,
+        default: null,
+      },
+      facialHair: {
+        type: String,
+        default: null,
+      },
+      mouth: {
+        type: String,
+        default: null,
+      },
+      body: {
+        type: String,
+        default: null,
+      },
+    },
+    purchased_items: {
+      seeds: [{
+        type: String,
+      }],
+      hair: [{
+        type: String,
+      }],
+      eyes: [{
+        type: String,
+      }],
+      facialHair: [{
+        type: String,
+      }],
+      mouth: [{
+        type: String,
+      }],
+      body: [{
+        type: String,
+      }],
+    },
   },
   { timestamps: true }
 );

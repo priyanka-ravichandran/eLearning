@@ -71,23 +71,35 @@ export const getDateRange = (date) => {
     .slice(0, 5);
 };
 
-
 export function createDateFromObject(dateObject) {
-  const {  date, month, year } = dateObject;
+  const { date, month, year } = dateObject;
   const monthDict = {
-      'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
-      'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+    January: 0,
+    February: 1,
+    March: 2,
+    April: 3,
+    May: 4,
+    June: 5,
+    July: 6,
+    August: 7,
+    September: 8,
+    October: 9,
+    November: 10,
+    December: 11,
   };
   const monthIndex = monthDict[month];
   return new Date(year, monthIndex, date);
 }
 
-export const QUESTION_TOPICS=[
-  'All',
+export const QUESTION_TOPICS = [
+  "All",
   "Statistics",
-	"Probablity",
-	"Trignomatery",
-	"Geomatery",
-	"Theorem",
-	"Equations" 
-]
+  "Probablity",
+  "Trignomatery",
+  "Geomatery",
+  "Theorem",
+  "Equations",
+];
+
+// Export the refreshStudentDetails utility function
+export { refreshStudentDetails } from "./refreshStudentDetails";

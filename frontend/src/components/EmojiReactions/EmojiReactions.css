@@ -1,0 +1,90 @@
+.emoji-reactions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.emoji-reaction-btn {
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.emoji-reaction-btn:hover {
+  background-color: #f8f9fa !important;
+  border-color: #0d6efd !important;
+  transform: scale(1.05);
+}
+
+.emoji-reaction-btn.active {
+  background-color: #e7f3ff !important;
+  border-color: #0d6efd !important;
+  color: #0d6efd !important;
+}
+
+.emoji-reaction-btn.has-reactions {
+  border-color: #adb5bd;
+}
+
+.emoji-reaction-btn:focus {
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.emoji-reaction-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reaction-count {
+  font-size: inherit;
+  font-weight: bold;
+}
+
+.total-reactions {
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Size variants */
+.emoji-reactions-sm .emoji-reaction-btn {
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.emoji-reactions-md .emoji-reaction-btn {
+  font-size: 14px;
+  padding: 4px 8px;
+}
+
+.emoji-reactions-lg .emoji-reaction-btn {
+  font-size: 16px;
+  padding: 6px 10px;
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+  .emoji-reactions {
+    gap: 4px;
+  }
+  
+  .emoji-reaction-btn {
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+  }
+  
+  .total-reactions {
+    font-size: 12px !important;
+  }
+}
+
+/* Animation for new reactions */
+@keyframes reactionPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.emoji-reaction-btn.active {
+  animation: reactionPop 0.3s ease-out;
+}

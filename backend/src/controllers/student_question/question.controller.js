@@ -5,12 +5,16 @@ const { StudentQuestion } = require("../../model/StudentQuestion.model");
 const { response } = require("../../utils/response");
 const questionRepository = require("../../repository/student_question.repository");
 const groupRepo = require("../../repository/group.repository");
+const studentRepo = require("../../repository/student.repository");
 const { Message } = require("../../utils/Message");
 
 // Create a new question
 const post_a_question = async (req, res) => {
-  const { question, description, topic, points, student_id } = req.body;
+  const { question, description, topic, points, student_id, correct_answer } = req.body;
   const POINTS_FOR_POSTING = 5;
+
+  console.log("POST A QUESTION - Request body:", req.body);
+  console.log("Student ID received:", student_id);
 
   try {
     const question_result = await questionRepository.post_a_question(
@@ -18,14 +22,25 @@ const post_a_question = async (req, res) => {
       description,
       topic,
       points,
-      student_id
-    );
-     await studentRepo.update_student_points(
       student_id,
-      POINTS_FOR_POSTING,
-      "credit",
-      "Posted a question"
+      correct_answer
     );
+    
+    // Award points to student (non-blocking)
+    try {
+      console.log("Attempting to update points for student:", student_id, "with points:", POINTS_FOR_POSTING);
+      const pointsResult = await studentRepo.update_student_points(
+        student_id,
+        POINTS_FOR_POSTING,
+        "credit",
+        "Posted a question"
+      );
+      console.log("Points update result:", pointsResult);
+    } catch (pointsError) {
+      console.error("Error updating student points:", pointsError);
+      // Don't fail the entire request if points update fails
+    }
+    
     if (!question_result) {
       return response(
         res,

@@ -107,7 +107,10 @@ const student_details = JSON.parse(localStorage.getItem("student_details"));
 const base_url = process.env.REACT_APP_BASE_URL;
 
 function App() {
-  const [studentDetails, setStudentDetails] = useState(null);
+  const [studentDetails, setStudentDetails] = useState(() => {
+    const stored = localStorage.getItem("student_details");
+    return stored ? JSON.parse(stored) : null;
+  });
   const getStudentdetails = async () => {
     try {
       const requestOptions = {

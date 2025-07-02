@@ -1,0 +1,226 @@
+/* Avatar Shop Component Styles */
+.avatar-shop-modal .modal-dialog {
+  max-width: 90vw;
+}
+
+/* Points Display */
+.points-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Shop Item Cards */
+.shop-item {
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  height: 100%;
+  cursor: pointer;
+}
+
+.shop-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.shop-item.owned {
+  border-color: #28a745;
+  background-color: #f8fff9;
+}
+
+.shop-item.equipped {
+  border-color: #007bff;
+  background-color: #f0f8ff;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+}
+
+/* Item Preview */
+.item-preview {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.avatar-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid #dee2e6;
+  object-fit: cover;
+}
+
+/* Item Details */
+.item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.item-price {
+  margin-bottom: 10px;
+}
+
+.item-actions {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* Current and Preview Avatars */
+.current-avatar,
+.preview-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid #dee2e6;
+  object-fit: cover;
+  transition: all 0.3s ease;
+}
+
+.current-avatar {
+  border-color: #28a745;
+}
+
+.preview-avatar {
+  border-color: #007bff;
+}
+
+/* Tab Navigation */
+.nav-pills .nav-link {
+  border-radius: 20px;
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+.nav-pills .nav-link.active {
+  background-color: #007bff;
+}
+
+/* Gender Badges */
+.badge.bg-pink {
+  background-color: #e91e63 !important;
+  color: white;
+}
+
+.badge.bg-blue {
+  background-color: #2196f3 !important;
+  color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .avatar-shop-modal .modal-dialog {
+    max-width: 95vw;
+    margin: 10px;
+  }
+  
+  .current-avatar,
+  .preview-avatar {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .item-preview {
+    height: 60px;
+  }
+  
+  .avatar-preview {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .item-name {
+    font-size: 0.8rem;
+  }
+  
+  .nav-pills .nav-link {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+  }
+}
+
+@media (max-width: 576px) {
+  .item-actions .btn {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+  
+  .points-display .badge {
+    font-size: 0.9rem;
+  }
+}
+
+/* Loading and Error States */
+.shop-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.shop-error {
+  text-align: center;
+  padding: 20px;
+}
+
+/* Animation for equipped items */
+@keyframes equipPulse {
+  0% { box-shadow: 0 0 5px rgba(0, 123, 255, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(0, 123, 255, 0.6); }
+  100% { box-shadow: 0 0 5px rgba(0, 123, 255, 0.3); }
+}
+
+.shop-item.equipped {
+  animation: equipPulse 2s infinite;
+}
+
+/* Special styling for free items */
+.shop-item .badge.bg-success {
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+/* Purchase button states */
+.item-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.item-actions .btn.btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+  font-weight: 500;
+}
+
+.item-actions .btn.btn-outline-primary {
+  border-color: #007bff;
+  color: #007bff;
+  font-weight: 500;
+}
+
+.item-actions .btn.btn-outline-secondary {
+  border-color: #6c757d;
+  color: #6c757d;
+}
+
+/* Card hover effects */
+.shop-item:hover .avatar-preview {
+  transform: scale(1.1);
+  border-color: #007bff;
+}
+
+.shop-item.owned:hover .avatar-preview {
+  border-color: #28a745;
+}
+
+.shop-item.equipped:hover .avatar-preview {
+  border-color: #007bff;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
+}

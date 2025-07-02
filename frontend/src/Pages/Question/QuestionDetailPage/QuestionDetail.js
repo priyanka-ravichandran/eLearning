@@ -7,6 +7,8 @@ import shell from "../../../Images/shell.png";
 import temp from "../../../Images/temp.png";
 
 import { toast } from "react-toastify";
+import { refreshStudentDetails } from "../../../utils";
+import { useMyContext } from "../../../MyContextProvider";
 
 const base_url = process.env.REACT_APP_BASE_URL;
 
@@ -17,6 +19,7 @@ function Question() {
   const { id } = useParams();
   const [submittedAnswer, setSubmittedAnswer] = useState("");
   const [llmVerification, setLlmVerification] = useState(null);
+  const { studentDetails, setStudentDetails } = useMyContext();
   const student_details = JSON.parse(localStorage.getItem("student_details"));
   const navigate = useNavigate();
 
@@ -121,6 +124,10 @@ function Question() {
       } else {
         setLlmVerification(null);
       }
+
+      // Refresh student details to update points in header immediately
+      await refreshStudentDetails(student_details.student._id, setStudentDetails);
+      
     } catch (error) {
       console.error("Error fetching data:", error.message);
     }

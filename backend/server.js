@@ -45,6 +45,7 @@ app.get("*", (req, res) => {
     req.path.startsWith("/student") ||
     req.path.startsWith("/student_question") ||
     req.path.startsWith("/group") ||
+    req.path.startsWith("/avatar") ||
     req.path.startsWith("/uploads")
   ) {
     return res.status(404).send("Not Found");

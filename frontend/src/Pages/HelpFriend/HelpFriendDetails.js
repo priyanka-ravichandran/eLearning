@@ -2,13 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Row } from "react-bootstrap";
 import userAvatar from "../../Images/useravatar.png";
-import like from "../../Images/emoji/like.png";
-import love from "../../Images/emoji/love.png";
-import care from "../../Images/emoji/care.png";
-import laugh from "../../Images/emoji/laugh.png";
-import wow from "../../Images/emoji/wow.png";
-import sad from "../../Images/emoji/sad.png";
-import angry from "../../Images/emoji/angry.png";
 import "./HelpFriend.css";
 import {
   useLazyGetQuestionDetailQuery,
@@ -18,6 +11,9 @@ import {
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import Avatar from "react-avatar";
+import { refreshStudentDetails } from "../../utils";
+import { useMyContext } from "../../MyContextProvider";
+import EmojiReactions from "../../components/EmojiReactions";
 
 export const fullDate = (date) =>
   new Date(date).toLocaleDateString("en-US", {
@@ -33,6 +29,7 @@ const HelpFriendDetails = () => {
   const [getSubmitAnswer] = useSubmitAnswerMutation();
   const [reactToAnswer] = useReactToAnswerMutation();
   const [llmFeedback, setLlmFeedback] = useState(null);
+  const { studentDetails, setStudentDetails } = useMyContext();
 
   const param = useParams();
   const userData = useSelector((state) => state.user.user);
@@ -47,7 +44,7 @@ const HelpFriendDetails = () => {
       student_id: userData?._id,
       answer: userComment,
     })
-      .then((res) => {
+      .then(async (res) => {
         setUserComment("");
         toast.success(`Answer Submitted Successfully`);
 
@@ -58,14 +55,21 @@ const HelpFriendDetails = () => {
           setLlmFeedback(null);
         }
 
+        // Refresh student details to update points in header immediately
+        await refreshStudentDetails(userData?._id, setStudentDetails);
+
         // Refresh question / answers
         getQuestionDetails({
           question_id: param?.id,
           student_id: userData?._id,
         });
       })
-      .catch(() => {
+      .catch(async () => {
         toast.error("Some error occurred");
+        
+        // Still try to refresh student details in case points were awarded
+        await refreshStudentDetails(userData?._id, setStudentDetails);
+        
         // still refresh to get whatever came back
         getQuestionDetails({
           question_id: param?.id,
@@ -281,33 +285,22 @@ const HelpFriendDetails = () => {
             </div>
 
             {/* Reactions */}
-            <div className="reactions" style={{ display: 'flex', gap: '4px' }}>
-              {[["like", like], ["love", love], ["care", care], ["laugh", laugh], ["wow", wow], ["sad", sad], ["angry", angry]].map(
-                ([type, imgSrc]) => (
-                  <button
-                    key={type}
-                    onClick={() => handleReaction(type, data.student_id._id)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '2px'
-                    }}
-                  >
-                    <img
-                      src={imgSrc}
-                      alt={type}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        border: data.reaction === type ? "2px solid #0074cc" : undefined,
-                        borderRadius: data.reaction === type ? "50%" : undefined,
-                      }}
-                    />
-                  </button>
-                )
-              )}
-            </div>
+            <EmojiReactions
+              postId={data._id}
+              postType="answer"
+              currentUserId={userData?._id}
+              questionId={param?.id}
+              initialReactions={data.reactions || {}}
+              onReactionUpdate={(newReactions) => {
+                // Refresh question details to get updated data
+                getQuestionDetails({
+                  question_id: param?.id,
+                  student_id: userData?._id,
+                });
+              }}
+              showCounts={true}
+              size="md"
+            />
           </div>
         </div>
       ))}

@@ -22,7 +22,9 @@ function Header() {
     toast.success("Logout Successful");
     navigate("/login");
   };
-  const student_details = JSON.parse(localStorage.getItem("student_details"));
+  
+  // Use context first, fallback to localStorage
+  const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
 
   return (
     <Navbar expand="lg" className="d-flex justify-content-between px-5 header">

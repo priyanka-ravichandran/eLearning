@@ -33,42 +33,96 @@ const update_student_points = async (
   transaction_type,
   reason
 ) => {
+  console.log("=== UPDATE_STUDENT_POINTS CALLED ===");
+  console.log("Input parameters:", { student_id, points, transaction_type, reason });
+  
   try {
+    // Validate inputs
+    if (!student_id) {
+      throw new Error("Student ID is required");
+    }
+    if (!points || isNaN(points)) {
+      throw new Error("Valid points value is required");
+    }
+    if (!transaction_type || !["credit", "debit"].includes(transaction_type)) {
+      throw new Error("Transaction type must be 'credit' or 'debit'");
+    }
+    if (!reason) {
+      throw new Error("Reason is required");
+    }
+
+    console.log("All validations passed, finding student...");
+
     // Check if a record with the given userId exists
     const existingStudentDetails = await Student.findById(student_id);
 
-    console.log("existingStudentDetails before", existingStudentDetails);
+    if (!existingStudentDetails) {
+      console.log("Student not found with ID:", student_id);
+      throw new Error("Student not found");
+    }
+
+    console.log("Student found:", existingStudentDetails.name, existingStudentDetails.email);
+    console.log("Current points before update:", {
+      total_points_earned: existingStudentDetails.total_points_earned,
+      current_points: existingStudentDetails.current_points
+    });
+
+    // Initialize achievements array if it doesn't exist
+    if (!Array.isArray(existingStudentDetails.achievements)) {
+      existingStudentDetails.achievements = [];
+    }
+
+    // Initialize points if they don't exist
+    if (typeof existingStudentDetails.total_points_earned !== 'number') {
+      existingStudentDetails.total_points_earned = 0;
+    }
+    if (typeof existingStudentDetails.current_points !== 'number') {
+      existingStudentDetails.current_points = 0;
+    }
 
     if (transaction_type === "credit") {
       existingStudentDetails.total_points_earned += points;
       existingStudentDetails.current_points += points;
+      console.log("Points credited. New totals:", {
+        total_points_earned: existingStudentDetails.total_points_earned,
+        current_points: existingStudentDetails.current_points
+      });
     } else if (transaction_type === "debit") {
       existingStudentDetails.current_points -= points;
+      console.log("Points debited. New current_points:", existingStudentDetails.current_points);
     }
 
-    existingStudentDetails.achievements.unshift({
-      reason: reason,
+    // Create achievement object with proper schema structure
+    const achievement = {
+      reason: String(reason),
       date: new Date(),
-      type: transaction_type,
-      points: points,
-    });
+      type: String(transaction_type),
+      points: Number(points),
+    };
 
-    console.log("existingStudentDetails after", existingStudentDetails);
+    existingStudentDetails.achievements.unshift(achievement);
+
+    console.log("About to save student with updated points and achievements...");
 
     await existingStudentDetails.save();
+    
+    console.log("Student saved successfully! Points should now be updated.");
 
-    await update_individual_rank();
+    // Don't await this as it might cause issues, let it run in background
+    update_individual_rank().catch(err => console.log("Rank update error:", err));
 
     return { success: true };
   } catch (error) {
-    console.log("error", error);
-    throw new Error("Error updating the points");
+    console.log("error in update_student_points:", error);
+    throw new Error(`Error updating the points: ${error.message}`);
   }
 };
 
 const update_individual_rank = async () => {
   try {
-    const students = await Student.find().sort({ total_points_earned: -1 });
+    const students = await Student.find()
+      .select('_id total_points_earned')
+      .sort({ total_points_earned: -1 });
 
     // Update individual ranks based on total_points_earned
     for (let i = 0; i < students.length; i++) {
@@ -80,7 +134,8 @@ const update_individual_rank = async () => {
 
     console.log("Individual ranks updated successfully.");
   } catch (error) {
-    throw new Error("Error updating the points");
+    console.log("Error in update_individual_rank:", error);
+    throw new Error(`Error updating individual ranks: ${error.message}`);
   }
 };
 
@@ -90,7 +145,7 @@ const get_student_achievements = async (student_id) => {
 
     // Check if a record with the given userId exists
     const studentArr = await Student.find({
-      _id: mongoose.Types.ObjectId(student_id),
+      _id: new mongoose.Types.ObjectId(student_id),
     });
     let achievements = studentArr.map((std) => std.achievements);
 

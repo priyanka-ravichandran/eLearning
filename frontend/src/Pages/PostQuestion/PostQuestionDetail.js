@@ -12,6 +12,7 @@ import { useSelector } from "react-redux";
 import { fullDate } from "../HelpFriend/HelpFriendDetails";
 import { toast } from "react-toastify";
 import Avatar from "react-avatar";
+import EmojiReactions from "../../components/EmojiReactions";
 const data = {
   name: "Adam Levine",
   date: "Feb 4,2024",
@@ -226,6 +227,22 @@ const PostQuestionDetail = () => {
                 </div>
               </div>
               <div className="comment-text">{data?.answer}</div>
+              
+              {/* Emoji Reactions */}
+              <EmojiReactions
+                postId={data?._id}
+                postType="answer"
+                currentUserId={userData?._id}
+                questionId={param?.id}
+                initialReactions={data?.reactions || {}}
+                onReactionUpdate={(newReactions) => {
+                  // Refresh question details to get updated data
+                  getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
+                }}
+                showCounts={true}
+                size="md"
+              />
+              
               {/* LLM Feedback Section */}
               {(data?.score !== undefined || data?.explanation || data?.solution) && (
                 <div
