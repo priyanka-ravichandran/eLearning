@@ -40,6 +40,16 @@ export const studentsApi = createApi({
         };
       },
     }),
+    getStudentPointTransactions: builder.mutation({
+      query: (body) => {
+        console.log("body", body);
+        return {
+          url: `/student/get_point_transactions`,
+          method: "POST",
+          body,
+        };
+      },
+    }),
     getIndividualLeaderBoard: builder.mutation({
       query: (body) => {
         console.log("body", body);
@@ -73,6 +83,7 @@ export const studentsApi = createApi({
 export const {
   useGetIndividualLeaderBoardMutation,
   useGetStudentAchievementsMutation,
+  useGetStudentPointTransactionsMutation,
   useGetStudentDetailsMutation,
   useUpdateStudentPointMutation,
 } = studentsApi;

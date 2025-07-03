@@ -64,26 +64,21 @@ var QuestionSchema = new Schema(
           ref: "Student",
         },
         vote: String,
-        reactions: {
-          type: Map,
-          of: [
-            {
-              user_id: {
-                type: Schema.Types.ObjectId,
-                ref: "Student",
-                required: true
-              },
-              date: {
-                type: Date,
-                default: Date.now
-              }
-            }
-          ],
-          default: new Map()
-          // Structure: { "👍": [{user_id: ObjectId, date: Date}], "❤️": [{user_id: ObjectId, date: Date}] }
-          // This ensures each emoji type has an array of users who reacted with that emoji
-          // Each user can only appear once per emoji type
-        },
+        reactions: [{
+          user_id: {
+            type: Schema.Types.ObjectId,
+            ref: "Student",
+            required: true
+          },
+          emoji: {
+            type: String,
+            required: true
+          },
+          date: {
+            type: Date,
+            default: Date.now
+          }
+        }],
       },
     ],
   },

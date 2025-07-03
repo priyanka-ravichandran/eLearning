@@ -19,6 +19,10 @@ var GroupSchema = new Schema(
       type: Number,
       required: true,
     },
+    leader: {
+      type: Schema.Types.ObjectId,
+      ref: "Student",
+    },
     team_members: [
       {
         type: Schema.Types.ObjectId,

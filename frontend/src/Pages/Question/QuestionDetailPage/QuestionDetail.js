@@ -115,7 +115,7 @@ function Question() {
       );
       const data = await response.json();
       console.log("question details", data.data);
-      toast.success("Answer Submitted Successfully");
+      toast.success("Answer Submitted Successfully! Points may be awarded based on quality.");
 
       setQuestionDetails(data.data);
       // LLM verification info

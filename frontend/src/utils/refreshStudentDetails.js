@@ -33,11 +33,13 @@ export const refreshStudentDetails = async (studentId, setStudentDetails = null)
       // Update context if setter is provided
       if (setStudentDetails) {
         setStudentDetails(newStudentDetails);
+        console.log('✅ Context updated with new student details');
       }
       
-      console.log('Student details refreshed:', {
+      console.log('✅ Student details refreshed:', {
         currentPoints: data.data.student.current_points,
-        totalPoints: data.data.student.total_points_earned
+        totalPoints: data.data.student.total_points_earned,
+        contextUpdated: !!setStudentDetails
       });
       
       return newStudentDetails;
@@ -49,4 +51,28 @@ export const refreshStudentDetails = async (studentId, setStudentDetails = null)
     console.error("Error refreshing student details:", error.message);
     return null;
   }
+};
+
+/**
+ * Refreshes points for a specific user if they are the current user
+ * This is useful when we know a specific user received points and want to update their UI
+ * @param {string} targetUserId - The user who received points
+ * @param {string} currentUserId - The current logged-in user
+ * @param {function} setStudentDetails - Context setter function
+ * @param {string} reason - Reason for the points update (for toast message)
+ * @returns {Promise<boolean>} - Returns true if points were refreshed for current user
+ */
+export const refreshPointsIfCurrentUser = async (targetUserId, currentUserId, setStudentDetails, reason = '') => {
+  // Only refresh if the target user is the current user
+  if (String(targetUserId) === String(currentUserId)) {
+    console.log('🔄 Refreshing points for current user after receiving points...');
+    const refreshResult = await refreshStudentDetails(currentUserId, setStudentDetails);
+    if (refreshResult) {
+      console.log('✅ Current user points refreshed successfully');
+      return true;
+    }
+  } else {
+    console.log('Points awarded to different user, no refresh needed for current user');
+  }
+  return false;
 };

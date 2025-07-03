@@ -7,6 +7,7 @@ import {
   useLazyGetQuestionDetailQuery,
   useVoteStudentMutation,
 } from "../../redux/api/questionsApi";
+import { useGetStudentAvatarMutation } from "../../redux/api/avatarApi";
 import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { fullDate } from "../HelpFriend/HelpFriendDetails";
@@ -43,16 +44,85 @@ const PostQuestionDetail = () => {
   const [getQuestionDetails, { data: getQuestionDetailsData }] =
     useLazyGetQuestionDetailQuery();
   const [voteStudent, { isSuccess }] = useVoteStudentMutation();
+  const [getStudentAvatar] = useGetStudentAvatarMutation();
 
   const param = useParams();
   const userData = useSelector((state) => state.user.user);
   const [llmFeedback, setLlmFeedback] = React.useState(null);
+  const [userAvatars, setUserAvatars] = React.useState({});
+
+  // Test function to create default avatars for users who don't have custom ones
+  const generateDefaultAvatar = (userId, userName) => {
+    // Only return null - we don't want to generate anything, just use backend avatars
+    return null;
+  };
 
   useEffect(() => {
     getQuestionDetails({ question_id: param?.id, student_id: userData?._id });
   }, []);
+
+  // Fetch avatars for all users who have answered
+  useEffect(() => {
+    if (getQuestionDetailsData?.data?.question?.answers) {
+      const answers = getQuestionDetailsData.data.question.answers;
+      const question = getQuestionDetailsData.data.question;
+      
+      console.log("Processing question and answers for avatars:", { question, answers });
+      
+      const newUserAvatars = {};
+      
+      // Process question author avatar
+      if (question.created_by?._id && question.created_by?.avatar) {
+        const authorId = question.created_by._id;
+        const avatarConfig = question.created_by.avatar;
+        console.log("Question author avatar config:", avatarConfig);
+        
+        // Generate avatar URL from backend data
+        const avatarUrl = generateAvatarUrlFromConfig(avatarConfig);
+        newUserAvatars[authorId] = avatarUrl;
+        console.log("Generated avatar URL for question author:", avatarUrl);
+      }
+      
+      // Process answer authors avatars
+      answers.forEach(answer => {
+        if (answer.student_id?._id && answer.student_id?.avatar) {
+          const studentId = answer.student_id._id;
+          const avatarConfig = answer.student_id.avatar;
+          console.log("Answer author avatar config:", avatarConfig);
+          
+          // Generate avatar URL from backend data
+          const avatarUrl = generateAvatarUrlFromConfig(avatarConfig);
+          newUserAvatars[studentId] = avatarUrl;
+          console.log("Generated avatar URL for answer author:", avatarUrl);
+        }
+      });
+      
+      console.log("Setting user avatars:", newUserAvatars);
+      setUserAvatars(newUserAvatars);
+    }
+  }, [getQuestionDetailsData]);
   console.log({ getQuestionDetailsData });
   console.log("success", isSuccess);
+  console.log("User avatars state:", userAvatars);
+
+  // Test function to manually test avatar API
+  const testAvatarAPI = () => {
+    if (userData?._id) {
+      console.log("Testing avatar API for current user:", userData._id);
+      getStudentAvatar({ student_id: userData._id })
+        .then((response) => {
+          console.log("Manual avatar test response:", response);
+        })
+        .catch((error) => {
+          console.log("Manual avatar test error:", error);
+        });
+    }
+  };
+
+  // Test on component mount
+  useEffect(() => {
+    setTimeout(testAvatarAPI, 2000); // Test after 2 seconds
+  }, [userData]);
 
   const handleVote = (voteType, voteTo) => {
     voteStudent({
@@ -107,13 +177,31 @@ const PostQuestionDetail = () => {
         </div>
       </div>
       <div className="d-flex align-items-center mb-4">
-        <Avatar
-          size={50}
-          round={true}
-          style={{ margin: "0 10px" }}
-          name={getQuestionDetailsData?.data?.question?.created_by?.name}
-          maxInitials={2}
-        />
+        {userAvatars[getQuestionDetailsData?.data?.question?.created_by?._id] ? (
+          <img
+            src={userAvatars[getQuestionDetailsData?.data?.question?.created_by?._id]}
+            alt="User Avatar"
+            style={{
+              width: "50px",
+              height: "50px",
+              borderRadius: "50%",
+              margin: "0 10px",
+              border: "2px solid #007bff"
+            }}
+            onError={(e) => {
+              console.log("Avatar image failed to load:", e.target.src);
+              e.target.style.display = 'none';
+            }}
+          />
+        ) : (
+          <Avatar
+            size={50}
+            round={true}
+            style={{ margin: "0 10px" }}
+            name={getQuestionDetailsData?.data?.question?.created_by?.name}
+            maxInitials={2}
+          />
+        )}
 
         <div>
           <span
@@ -186,16 +274,31 @@ const PostQuestionDetail = () => {
         {getQuestionDetailsData?.data?.question?.answers?.map((data) => (
           <div className="comment-section">
             <div>
-              <img
-                src={userAvatar}
-                alt="userAvatar"
-                style={{
-                  borderRadius: "50%",
-                  width: "50px",
-                  height: "50px",
-                  marginRight: "10px",
-                }}
-              />
+              {userAvatars[data?.student_id?._id] ? (
+                <img
+                  src={userAvatars[data?.student_id?._id]}
+                  alt="User Avatar"
+                  style={{
+                    borderRadius: "50%",
+                    width: "50px",
+                    height: "50px",
+                    marginRight: "10px",
+                    border: "2px solid #007bff"
+                  }}
+                  onError={(e) => {
+                    console.log("Avatar image failed to load for answer:", e.target.src);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <Avatar
+                  size={50}
+                  round={true}
+                  style={{ marginRight: "10px" }}
+                  name={data?.student_id?.name}
+                  maxInitials={2}
+                />
+              )}
             </div>
             <div style={{ width: "100%" }}>
               <div className="comment-header">
@@ -284,3 +387,35 @@ const PostQuestionDetail = () => {
 };
 
 export default PostQuestionDetail;
+
+// Generate DiceBear avatar URL from avatar configuration
+const generateAvatarUrlFromConfig = (avatarConfig) => {
+    if (!avatarConfig) return null;
+    
+    const baseUrl = 'https://api.dicebear.com/9.x/personas/svg';
+    const params = new URLSearchParams();
+    
+    // Add seed
+    if (avatarConfig.seed) {
+      params.append('seed', avatarConfig.seed);
+    }
+    
+    // Add customizations based on Personas style options
+    if (avatarConfig.hair) {
+      params.append('hair', avatarConfig.hair);
+    }
+    if (avatarConfig.eyes) {
+      params.append('eyes', avatarConfig.eyes);
+    }
+    if (avatarConfig.facialHair) {
+      params.append('facialHair', avatarConfig.facialHair);
+    }
+    if (avatarConfig.mouth) {
+      params.append('mouth', avatarConfig.mouth);
+    }
+    if (avatarConfig.body) {
+      params.append('body', avatarConfig.body);
+    }
+    
+    return `${baseUrl}?${params.toString()}`;
+  };

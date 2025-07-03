@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./LeaderBoard.css";
 import shell from "../../Images/nav/shell.png";
 import userImage from "../../Images/Leaderboard/userImage.svg";
+import UserAvatar from "../../components/UserAvatar";
 import {
   useGetGroupDetailsMutation,
   useGetGroupLeaderBoardMutation,
@@ -13,6 +14,7 @@ import {
 } from "../../redux/api/studentsApi";
 import { useSelector } from "react-redux";
 import { Container } from "react-bootstrap";
+import { useMyContext } from "../../MyContextProvider";
 
 const leaderBoardIndividualData = [
   {
@@ -144,10 +146,12 @@ const LeaderBoard = () => {
     const handleMouseMove = (e) => {
       const newCoords = {x: e.screenX, y: e.screenY}
         setCoord(newCoords);
-        console.log("Mouse Coordinates:", newCoords)
       };
   const [activeTab, setActiveTab] = useState("individual");
 
+  // Use global context for student details to get real-time updates
+  const { studentDetails } = useMyContext();
+  const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
   const userData = useSelector((state) => state.user.user);
   const [getGroupDetails, { data: groupDetails }] =
     useGetGroupDetailsMutation();
@@ -161,15 +165,12 @@ const LeaderBoard = () => {
     { data: individualLeaderBoardData, isLoading: leaderLoading },
   ] = useGetIndividualLeaderBoardMutation();
 
-  console.log("GROUPSS:", groupLeaderBoard?.data?.payload?.group_leaderboard);
+  // Debug: Log the leaderboard data to see if avatarUrl is present
+  console.log("Leaderboard Debug - Individual Data:", individualLeaderBoardData?.data?.payload?.individual_leaderboard);
+  if (individualLeaderBoardData?.data?.payload?.individual_leaderboard?.length > 0) {
+    console.log("First user data:", individualLeaderBoardData.data.payload.individual_leaderboard[0]);
+  }
 
-  console.log(
-    studentsData,
-    "get grp",
-    groupDetails,
-    individualLeaderBoardData?.data?.payload?.individual_leaderboard
-  );
-  console.log("grp leaderboard", groupLeaderBoard?.payload);
   useEffect(() => {
     getGroupDetails({ group_id: "" });
     getStudentDetails({ student_id: userData?._id });
@@ -189,6 +190,16 @@ const LeaderBoard = () => {
     }
     return [];
   };
+
+  // Debug: Check what data we're getting from the API
+  console.log("🔍 LeaderBoard Data Structure:");
+  console.log("individualLeaderBoardData:", individualLeaderBoardData);
+  console.log("groupLeaderBoard:", groupLeaderBoard);
+  
+  // Check if individual users have avatarUrl
+  if (individualLeaderBoardData?.data?.payload?.individual_leaderboard) {
+    console.log("🔍 First user in leaderboard:", individualLeaderBoardData.data.payload.individual_leaderboard[0]);
+  }
 
   return (
     <>
@@ -230,7 +241,12 @@ const LeaderBoard = () => {
                   <div className="leader-card-header">
                     <div className="card-no">{data?.individual_rank}</div>
                     <div>
-                      <img src={userImage} alt="user" className="userImage" />
+                      <UserAvatar 
+                        user={data}
+                        size="60"
+                        round={true}
+                        className="userImage"
+                      />
                     </div>
                     <div className="name">{data?.name}</div>
                   </div>
@@ -260,13 +276,18 @@ const LeaderBoard = () => {
                     <div className="card-no">{data?.group_rank}</div>
                     <div className="group-users-sec">
                       {data?.team_members?.map((student) => (
-                        <div className="group-users">
+                        <div className="group-users" key={student._id}>
                           <img
                             src={userImage}
                             alt="user"
                             className="group-user"
                           />
-                          <div>{student?.name}</div>
+                          <div>
+                            {student?.name}
+                            {student?.is_leader && (
+                              <div style={{ fontSize: '10px', color: '#f39c12' }}>👑 Leader</div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -299,10 +320,14 @@ const LeaderBoard = () => {
             ?.filter((user) => user?.individual_rank > 3)
             ?.map((data) => (
               <div className="leader-board-single-row">
-                {console.log("dd", data)}
                 <div className="row-left">
                   <div>{data?.individual_rank}</div>
-                  <img src={userImage} alt="user" className="userImage" />
+                  <UserAvatar 
+                    user={data}
+                    size="40"
+                    round={true}
+                    className="userImage"
+                  />
                   <div className="name">{data?.name}</div>
                 </div>
                 <div className="row-right">
@@ -340,8 +365,15 @@ const LeaderBoard = () => {
                   <div className="students-table-users-main">
                     (
                     {data?.team_members?.map((student) => (
-                      <div>
-                        <div>{student?.name}</div>
+                      <div key={student._id}>
+                        <div>
+                          {student?.name}
+                          {student?.is_leader && (
+                            <span style={{ fontSize: '12px', color: '#f39c12', marginLeft: '5px' }}>
+                              👑
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                     )

@@ -12,10 +12,13 @@ const create_group = async (name, student_id_1, student_id_2, student_id_3) => {
   // Find the highest group_no and increment
   const lastGroup = await Group.findOne().sort({ group_no: -1 });
   const newGroupNo = lastGroup ? lastGroup.group_no + 1 : 1;
+  
+  // Set student_id_1 (creator) as the leader
   const group = {
     name,
     code: generateGroupCode(),
     group_no: newGroupNo,
+    leader: student_id_1, // Set the leader to the creator of the group
     team_members: [student_id_1, student_id_2, student_id_3].filter(Boolean),
     total_points_earned: 0,
     current_points: 0,
@@ -105,7 +108,18 @@ const get_group_achievements = async (group_id) => {
     // Check if a record with the given userId exists
     const existingGroupDetails = await Group.findOne({
       _id: mongoose.Types.ObjectId(group_id),
-    }).populate({ path: "team_members", select: "name" });
+    }).populate({ path: "team_members", select: "name avatar" });
+    
+    // Generate avatar URLs for team members
+    if (existingGroupDetails && existingGroupDetails.team_members) {
+      const avatarRepo = require("./avatar.repository");
+      existingGroupDetails.team_members.forEach(member => {
+        if (member.avatar) {
+          member.avatarUrl = avatarRepo.generateAvatarUrl(member.avatar);
+        }
+      });
+    }
+    
     // const team_members = existingGroupDetails.team_members.filter(
     //   (mem) => mem
     // );
@@ -138,8 +152,21 @@ const get_group_leaderboard = async () => {
     await update_group_rank();
 
     const groups = await Group.find()
-      .populate({ path: "team_members", select: "name" })
+      .populate({ path: "team_members", select: "name avatar" })
       .sort({ group_rank: 1 });
+    
+    // Generate avatar URLs for team members
+    const avatarRepo = require("./avatar.repository");
+    groups.forEach(group => {
+      if (group.team_members && group.team_members.length > 0) {
+        group.team_members.forEach(member => {
+          if (member.avatar) {
+            member.avatarUrl = avatarRepo.generateAvatarUrl(member.avatar);
+          }
+        });
+      }
+    });
+    
     return {
       success: true,
       group_leaderboard: groups,
@@ -184,9 +211,25 @@ const join_group = async (code, student_id) => {
 const exit_group = async (group_id, student_id) => {
   const group = await Group.findById(group_id);
   if (!group) throw new Error("Group not found");
+  
+  // Check if the student is the group leader
+  const isLeader = group.leader && group.leader.toString() === student_id;
+  
+  // Remove the student from the team members
   group.team_members = group.team_members.filter(
     (id) => id.toString() !== student_id
   );
+  
+  // If the student was the leader, assign leadership to another member if any remain
+  if (isLeader && group.team_members.length > 0) {
+    // Assign the first remaining member as the new leader
+    group.leader = group.team_members[0];
+    console.log("Group leadership transferred to", group.leader);
+  } else if (isLeader) {
+    // If no members left, remove leader
+    group.leader = null;
+  }
+  
   await group.save();
   return group;
 };

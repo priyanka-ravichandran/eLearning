@@ -19,16 +19,23 @@ const EmojiReactions = ({
   currentUserId,
   questionId, // Add questionId prop for the existing API
   initialReactions = {},
+  userReaction: initialUserReaction = null, // Add prop for initial user reaction
   onReactionUpdate = () => {},
   showCounts = true,
   size = 'md' // 'sm', 'md', 'lg'
 }) => {
   const [reactions, setReactions] = useState(initialReactions);
-  const [userReaction, setUserReaction] = useState(null);
+  const [userReaction, setUserReaction] = useState(initialUserReaction);
   const [loading, setLoading] = useState(false);
   
   // Use existing API hook
   const [reactToAnswer] = useReactToAnswerMutation();
+
+  // Update local state when props change
+  useEffect(() => {
+    setReactions(initialReactions);
+    setUserReaction(initialUserReaction);
+  }, [initialReactions, initialUserReaction]);
 
   // Available emoji reactions with their images
   const emojiOptions = [
@@ -67,37 +74,80 @@ const EmojiReactions = ({
       setLoading(true);
       
       // Use existing API that works
-      await reactToAnswer({
+      const response = await reactToAnswer({
         question_id: questionId,
         reaction_by: currentUserId,
         reaction_for: postId,
         reaction: reactionType,
       });
 
-      // Update local state optimistically
-      const newReactions = { ...reactions };
-      
-      // Remove previous reaction count
-      if (userReaction && newReactions[userReaction] !== undefined) {
-        newReactions[userReaction] = Math.max(0, (newReactions[userReaction] || 0) - 1);
+      console.log('API Response:', response);
+
+      // Check if backend returned reaction summary
+      if (response?.data?.reactionSummary) {
+        // Use backend's reaction summary
+        setReactions(response.data.reactionSummary);
+        setUserReaction(response.data.userReaction);
+        onReactionUpdate(response.data.reactionSummary);
+        
+        console.log('✅ Updated reactions from backend:', {
+          reactions: response.data.reactionSummary,
+          userReaction: response.data.userReaction
+        });
+      } else {
+        // Fallback to optimistic update
+        const newReactions = { ...reactions };
+        
+        // Remove previous reaction count
+        if (userReaction && newReactions[userReaction] !== undefined) {
+          newReactions[userReaction] = Math.max(0, (newReactions[userReaction] || 0) - 1);
+        }
+
+        // Add new reaction count or remove if same reaction
+        if (userReaction === reactionType) {
+          // User clicked same reaction - remove it
+          setUserReaction(null);
+          console.log('✅ Removed reaction:', reactionType);
+        } else {
+          // User clicked different reaction - add it
+          newReactions[reactionType] = (newReactions[reactionType] || 0) + 1;
+          setUserReaction(reactionType);
+          console.log('✅ Added reaction:', reactionType);
+        }
+
+        setReactions(newReactions);
+        onReactionUpdate(newReactions);
       }
 
-      // Add new reaction count or remove if same reaction
+      // Show toast message based on backend response
       if (userReaction === reactionType) {
-        // User clicked same reaction - remove it
-        setUserReaction(null);
-        console.log('✅ Removed reaction:', reactionType);
         toast.success(`Removed ${reactionType} reaction`);
       } else {
-        // User clicked different reaction - add it
-        newReactions[reactionType] = (newReactions[reactionType] || 0) + 1;
-        setUserReaction(reactionType);
-        console.log('✅ Added reaction:', reactionType);
-        toast.success(`Reacted with ${reactionType}`);
+        // Check if backend provided points information
+        const pointsAwarded = response?.data?.reaction_details?.points_awarded;
+        const achievement = response?.data?.achievement;
+        
+        // Only show points message for like and love reactions
+        if ((reactionType === 'like' || reactionType === 'love') && pointsAwarded > 0) {
+          // Show message indicating points were awarded to answer author
+          toast.success(`Reacted with ${reactionType}! +${pointsAwarded} points awarded to answer author`, {
+            autoClose: 4000
+          });
+          
+          // If we have access to refresh function, trigger a global refresh
+          // This could be passed as a prop from parent components
+          if (window.refreshUserPoints && typeof window.refreshUserPoints === 'function') {
+            console.log('🔄 Triggering global points refresh after reaction...');
+            window.refreshUserPoints();
+          }
+        } else if (reactionType === 'like' || reactionType === 'love') {
+          // Fallback for thumbs up/heart if backend didn't provide points info
+          toast.success(`Reacted with ${reactionType}! The answer author earned +2 points`);
+        } else {
+          // For other reactions, just show basic message
+          toast.success(`Reacted with ${reactionType}`);
+        }
       }
-
-      setReactions(newReactions);
-      onReactionUpdate(newReactions);
       
     } catch (err) {
       console.log('❌ Failed to toggle reaction:', err);

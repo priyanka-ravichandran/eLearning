@@ -8,6 +8,8 @@ const {
   get_student_questions_posted,
   vote_student_answer,
   react_to_answer,
+  debug_question_structure,
+  debug_student_info,
 } = require("../controllers/student_question/question.controller");
 const isAuth = require("../middleware/auth");
 const router = Router();
@@ -22,6 +24,8 @@ router.post("/get_my_questions", get_my_questions);
 router.post("/get_student_questions_posted", get_student_questions_posted);
 router.post("/vote_student_answer", vote_student_answer);
 router.post("/react_to_answer", react_to_answer);
+router.get("/debug_question/:question_id", debug_question_structure);
+router.get("/debug_student/:student_id", debug_student_info);
 // router.post('/get_student_questions_posted', get_student_questions_posted)
 
 module.exports = router;

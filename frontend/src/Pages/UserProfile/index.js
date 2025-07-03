@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Card, Button, Tab, Nav, Form, Row, Col, Alert, Spinner, Toast, ToastContainer } from "react-bootstrap";
 import Avatar from "react-avatar";
 import AvatarShop from "../../components/AvatarShop";
-import EmojiReactionsMock from "../../components/EmojiReactions/EmojiReactionsMock";
 import "./index.css";
 
 const API_BASE = "http://localhost:3000";
@@ -59,9 +58,6 @@ const UserProfile = () => {
       const data = await res.json();
       if (data.status && data.data && data.data.student) {
         const newStudentDetails = { student: data.data.student };
-        console.log('Updated student details from backend:', data.data.student);
-        console.log('Current Points:', data.data.student.current_points);
-        console.log('Total Points Earned:', data.data.student.total_points_earned);
         localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
         setStudentDetails(newStudentDetails);
         
@@ -422,22 +418,6 @@ const UserProfile = () => {
                     >
                       🎭 Customize Avatar
                     </Button>
-                    
-                    {/* Demo Emoji Reactions */}
-                    <div className="mt-3">
-                      <div className="text-muted small mb-2">React to your profile:</div>
-                      <EmojiReactionsMock
-                        postId={`profile-${studentDetails?.student?._id}`}
-                        postType="profile"
-                        currentUserId={studentDetails?.student?._id}
-                        initialReactions={{ like: 5, love: 3, wow: 2 }}
-                        showCounts={true}
-                        size="md"
-                        onReactionUpdate={(reactions) => {
-                          console.log('Profile reactions updated:', reactions);
-                        }}
-                      />
-                    </div>
                   </Col>
                   <Col xs={12} md={8}>
                     <Row className="mb-2">
@@ -453,7 +433,7 @@ const UserProfile = () => {
                     <Row className="mb-2">
                       <Col xs={6}>
                         <div className="text-secondary small">Current Points</div>
-                        <div className="fw-semibold">{studentDetails?.student?.current_points}</div>
+                      <div className="fw-semibold">{studentDetails?.student?.current_points}</div>
                       </Col>
                       <Col xs={6}>
                         <div className="text-secondary small">Total Points Earned</div>

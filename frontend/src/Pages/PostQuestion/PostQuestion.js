@@ -11,9 +11,11 @@ import {
   useLazyGetMyQuestionsQuery,
   usePostQuestionMutation,
 } from "../../redux/api/questionsApi";
-import { QUESTION_TOPICS } from "../../utils";
+import { useGetStudentAvatarMutation } from "../../redux/api/avatarApi";
+import { QUESTION_TOPICS, refreshStudentDetails } from "../../utils";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { useMyContext } from "../../MyContextProvider";
 // import * as tf from '@tensorflow/tfjs';
 //import webgazer from "../WebGazer";
 import * as tmImage from '@teachablemachine/image';
@@ -37,17 +39,13 @@ const PostQuestion = () => {
   // const [getAllQuestions,{data:getAllQuestion}]= useGetAllQuestionsMutation()
   const [getMyQuestions, { data: myQuestions ,isLoading:questionLoading}] = useLazyGetMyQuestionsQuery();
   const [postQuestion, { isLoading, isError }] = usePostQuestionMutation();
+  const [getStudentAvatar, { data: avatarData }] = useGetStudentAvatarMutation();
   const userData = useSelector((state) => state.user?.user);
+  const { studentDetails, setStudentDetails } = useMyContext();
   var [data, setData] = useState();
     // Emotion Pop-up State
     const [showChatbot, setShowChatbot] = useState(false);
     const [emotion, setEmotion] = useState("");
-  const [coord, setCoord] = useState({ x: 0, y: 0 });
-  const handleMouseMove = (e) => {
-    const newCoords = {x: e.screenX, y: e.screenY}
-      setCoord(newCoords);
-      console.log("Mouse Coordinates:", newCoords)
-    };
 
      // Function to handle emotion selection
   const handleEmotionClick = (emotion) => {
@@ -191,6 +189,24 @@ const PostQuestion = () => {
     // getPostQuestionList()
   }, [questionState?.topic]);
 
+  // Fetch user avatar data
+  useEffect(() => {
+    if (userData?._id) {
+      console.log("Fetching avatar for current user:", userData._id);
+      getStudentAvatar({ student_id: userData._id })
+        .then((response) => {
+          console.log("Current user avatar response:", response);
+        })
+        .catch((error) => {
+          console.log("Current user avatar error:", error);
+        });
+    }
+  }, [userData?._id]);
+
+  console.log("Avatar data:", avatarData);
+  console.log("Avatar URL:", avatarData?.data?.avatarUrl);
+  console.log("Full avatar response structure:", JSON.stringify(avatarData, null, 2));
+
   console.log(myQuestions, "myQuestions");
   console.log("post quesiton res", isError, isLoading);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -203,37 +219,117 @@ const PostQuestion = () => {
     }));
   };
 
-  const handleSubmit = () => {
-    console.log(questionState);
-    postQuestion({ ...questionState, student_id: userData?._id })
-      .then((res) => {
-        console.log("res", res);
-        toast.success('Question Posted Successfully')
-        setIsModalOpen(false);
-      })
-      .catch((err) => {
-        toast.error('Some Error Occured')
-        console.log("err", err);
-      });
+  const handleSubmit = async () => {
+    console.log("=== HANDLE SUBMIT STARTED ===");
+    console.log("Question state:", questionState);
+    console.log("User data:", userData);
+    
+    try {
+      console.log("Posting question with data:", { ...questionState, student_id: userData?._id });
+      const res = await postQuestion({ ...questionState, student_id: userData?._id });
+      console.log("=== QUESTION POST RESPONSE ===");
+      console.log("Full response:", res);
+      console.log("Response data:", res?.data);
+      console.log("Achievement info:", res?.data?.achievement);
+      
+      // Check if points were awarded and refresh student details
+      if (res?.data?.achievement) {
+        console.log("✅ Points detected in response!");
+        console.log("Achievement points value:", res.data.achievement.points);
+        console.log("Achievement points type:", typeof res.data.achievement.points);
+        
+        // Extract numeric value from points (remove + sign if present)
+        const pointsValue = res.data.achievement.points.toString().replace('+', '');
+        toast.success(`Question Posted Successfully! You earned ${pointsValue} points!`);
+        
+        // Refresh student details to update points in header
+        if (userData?._id) {
+          console.log('Refreshing student details after posting question...');
+          console.log('Student ID:', userData._id);
+          const refreshResult = await refreshStudentDetails(userData._id, setStudentDetails);
+          console.log('Refresh result:', refreshResult);
+          if (refreshResult) {
+            console.log('✅ Student details refreshed after question posting');
+            console.log('New points from refresh:', refreshResult.student?.current_points);
+            // Force a re-render by updating the questions list
+            getMyQuestions({
+              start_date: new Date("03-03-2023"),
+              end_date: new Date(),
+              topic: questionState?.topic,
+              student_id: userData?._id,
+            });
+          }
+        }
+      } else {
+        console.log("⚠️ No achievement data in response");
+        console.log("Response structure:", JSON.stringify(res, null, 2));
+        toast.success('Question Posted Successfully');
+        
+        // Still try to refresh student details in case points were awarded but not returned in response
+        if (userData?._id) {
+          console.log('Attempting to refresh student details anyway...');
+          const refreshResult = await refreshStudentDetails(userData._id, setStudentDetails);
+          console.log('Fallback refresh result:', refreshResult);
+          if (refreshResult) {
+            console.log('New points from fallback refresh:', refreshResult.student?.current_points);
+          }
+        }
+      }
+      
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("=== ERROR POSTING QUESTION ===");
+      console.error("Full error:", err);
+      console.error("Error response:", err?.response);
+      console.error("Error data:", err?.response?.data);
+      toast.error('Some Error Occurred');
+    }
   };
   return (
     <>
-      <Container onMouseMove={handleMouseMove}
+      <Container
         style={{
           maxWidth: "95%",
         }}
       >
         <Button onClick={handleClick}>EyeTrack</Button> 
         <Button onClick={alertHello}>EngageTrack</Button> 
+        
+        {/* Hidden containers for webcam functionality */}
+        <div id="webcam-container" style={{ display: 'none' }}></div>
+        <div id="label-container" style={{ display: 'none' }}></div>
+        
         <div>
           <div className="home-container">
-          <div className="info" style={{marginTop:20, marginLeft:-418}}>
-        Mouse coordinates: {coord.x} {coord.y}
-         </div>
           {/* Emotion Pop-up */}
           {showChatbot && (
             <div className="ChatbotContainer">
               <div className="ChatbotCard">
+                {/* User Avatar Display */}
+                {avatarData?.data?.avatarUrl && (
+                  <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                    <img 
+                      src={avatarData.data.avatarUrl} 
+                      alt="Your Avatar" 
+                      style={{ 
+                        width: '60px', 
+                        height: '60px', 
+                        borderRadius: '50%',
+                        border: '2px solid #007bff'
+                      }} 
+                    />
+                  </div>
+                )}
+                {!avatarData?.data?.avatarUrl && avatarData?.data && (
+                  <div style={{ textAlign: 'center', marginBottom: '10px', color: 'orange' }}>
+                    Avatar loaded but no URL found. Data: {JSON.stringify(avatarData.data, null, 2)}
+                  </div>
+                )}
+                {!avatarData && (
+                  <div style={{ textAlign: 'center', marginBottom: '10px', color: 'gray' }}>
+                    Loading avatar...
+                  </div>
+                )}
                 <p>Welcome! How are you feeling?</p>
                 <div className="Emotions">
                   <button onClick={() => handleEmotionClick("Happy")}>
@@ -274,7 +370,7 @@ const PostQuestion = () => {
 
                   <Dropdown.Menu>
                    { QUESTION_TOPICS.map((topic)=>(
-                   <Dropdown.Item  name={topic} onClick={(e)=>{
+                   <Dropdown.Item key={topic} name={topic} onClick={(e)=>{
                     setQuestionState((prevState) => ({
                       ...prevState,
                       topic: e.target.name,
@@ -433,7 +529,7 @@ const PostQuestion = () => {
                   </Dropdown.Toggle>
                 <Dropdown.Menu>
                    { QUESTION_TOPICS.slice(1).map((topic)=>(
-                   <Dropdown.Item  name={topic} onClick={(e)=>{
+                   <Dropdown.Item key={topic} name={topic} onClick={(e)=>{
                     const { name } = e.target;
                     setQuestionState((prevState) => ({
                       ...prevState,

@@ -11,9 +11,10 @@ import {
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import Avatar from "react-avatar";
-import { refreshStudentDetails } from "../../utils";
+import { refreshStudentDetails, refreshPointsIfCurrentUser } from "../../utils";
 import { useMyContext } from "../../MyContextProvider";
 import EmojiReactions from "../../components/EmojiReactions";
+import UserAvatar from "../../components/UserAvatar";
 
 export const fullDate = (date) =>
   new Date(date).toLocaleDateString("en-US", {
@@ -46,7 +47,7 @@ const HelpFriendDetails = () => {
     })
       .then(async (res) => {
         setUserComment("");
-        toast.success(`Answer Submitted Successfully`);
+        toast.success(`Answer Submitted Successfully! Points may be awarded based on quality.`);
 
         // Capture the LLM block if returned immediately
         if (res?.data?.llm) {
@@ -115,12 +116,11 @@ const HelpFriendDetails = () => {
 
       {/* Author + Date */}
       <div className="d-flex align-items-center mb-4">
-        <Avatar
-          size={50}
-          round
+        <UserAvatar
+          user={question?.created_by}
+          size="50"
+          round={true}
           style={{ margin: "0 10px" }}
-          name={question?.created_by?.name}
-          maxInitials={2}
         />
         <div>
           <span style={{ fontWeight: "bold", fontSize: 25 }}>
@@ -188,7 +188,31 @@ const HelpFriendDetails = () => {
       )}
 
       {/* All existing answers */}
-      {question?.answers?.map((data) => (
+      {question?.answers?.map((data) => {
+        // Convert reactions array to count object for EmojiReactions component
+        const reactionCounts = {};
+        let userReaction = null;
+        
+        if (data.reactions && Array.isArray(data.reactions)) {
+          data.reactions.forEach(reaction => {
+            // Count reactions by emoji type
+            reactionCounts[reaction.emoji] = (reactionCounts[reaction.emoji] || 0) + 1;
+            
+            // Check if current user has reacted
+            if (String(reaction.user_id) === String(userData?._id)) {
+              userReaction = reaction.emoji;
+            }
+          });
+        }
+        
+        console.log("Processing answer reactions:", {
+          answerId: data._id,
+          reactions: data.reactions,
+          reactionCounts,
+          userReaction
+        });
+        
+        return (
         <div className="answer-container" key={data._id} style={{
           border: '1px solid #e4e6ea',
           borderRadius: '8px',
@@ -264,13 +288,11 @@ const HelpFriendDetails = () => {
           }}>
             {/* User info */}
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <img
-                src={userAvatar}
-                alt="userAvatar"
+              <UserAvatar 
+                user={data?.student_id}
+                size="32"
+                round={true}
                 style={{
-                  borderRadius: "50%",
-                  width: 32,
-                  height: 32,
                   marginRight: 8,
                 }}
               />
@@ -290,20 +312,44 @@ const HelpFriendDetails = () => {
               postType="answer"
               currentUserId={userData?._id}
               questionId={param?.id}
-              initialReactions={data.reactions || {}}
-              onReactionUpdate={(newReactions) => {
+              initialReactions={reactionCounts}
+              userReaction={userReaction}
+              onReactionUpdate={async (newReactions) => {
+                console.log('Reaction update callback triggered', newReactions);
+                
                 // Refresh question details to get updated data
                 getQuestionDetails({
                   question_id: param?.id,
                   student_id: userData?._id,
                 });
+                
+                // The answer author (data.student_id._id) is the one who receives points
+                // Check if current user is the answer author and refresh their points
+                const answerAuthorId = data?.student_id?._id;
+                
+                if (answerAuthorId && userData?._id) {
+                  const pointsRefreshed = await refreshPointsIfCurrentUser(
+                    answerAuthorId, 
+                    userData._id, 
+                    setStudentDetails,
+                    'reaction received'
+                  );
+                  
+                  if (pointsRefreshed) {
+                    toast.success('You received +2 points for the reaction!', { 
+                      position: 'top-right',
+                      autoClose: 3000 
+                    });
+                  }
+                }
               }}
               showCounts={true}
               size="md"
             />
           </div>
         </div>
-      ))}
+        );
+      })}
     </Row>
   );
 };

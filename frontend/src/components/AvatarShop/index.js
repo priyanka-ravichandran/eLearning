@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Card, Row, Col, Badge, Alert, Spinner, Tab, Nav } from 'react-bootstrap';
 import './index.css';
-import { refreshStudentDetails } from '../../utils';
-import { useMyContext } from '../../MyContextProvider';
 
 const API_BASE = "http://localhost:3000";
 
 const AvatarShop = ({ show, onHide, studentDetails, onAvatarUpdate }) => {
-  const { setStudentDetails } = useMyContext();
   const [shopData, setShopData] = useState(null);
   const [userAvatarData, setUserAvatarData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -121,13 +118,8 @@ const AvatarShop = ({ show, onHide, studentDetails, onAvatarUpdate }) => {
       const data = await response.json();
       if (data.status) {
         setSuccess(`Successfully purchased ${data.data.item.name}!`);
-        
         // Refresh avatar data
         await fetchUserAvatarData();
-        
-        // Refresh student details to update points in header immediately
-        await refreshStudentDetails(studentDetails.student._id, setStudentDetails);
-        
         // Update parent component
         if (onAvatarUpdate) {
           onAvatarUpdate();

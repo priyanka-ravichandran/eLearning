@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import "./Achievement.css";
 import { Container } from "react-bootstrap";
-import { useGetStudentAchievementsMutation } from "../../redux/api/studentsApi";
+import { useGetStudentAchievementsMutation, useGetStudentPointTransactionsMutation } from "../../redux/api/studentsApi";
 import { useSelector } from "react-redux";
 import { useGetGroupAchievementsMutation } from "../../redux/api/groupsApi";
 import { fullDate } from "../HelpFriend/HelpFriendDetails";
+import { useMyContext } from "../../MyContextProvider";
 
 const Achievement = () => {
   // Mouse Tracking State
@@ -13,7 +14,6 @@ const Achievement = () => {
   const handleMouseMove = (e) => {
     const newCoords = { x: e.screenX, y: e.screenY };
     setCoord(newCoords);
-    console.log("Mouse Coordinates:", newCoords);
   };
 
   // Emotion Pop-up State
@@ -23,14 +23,10 @@ const Achievement = () => {
   // Function to handle emotion selection
   const handleEmotionClick = (emotion) => {
     setEmotion(emotion);
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Emotion selected: ${emotion}`);
   };
 
   // Function to submit emotion
   const submitEmotion = () => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Emotion submitted: ${emotion}`);
     setEmotion(""); // Reset emotion after submission
   };
 
@@ -45,18 +41,84 @@ const Achievement = () => {
   const [activeTab, setActiveTab] = useState("individual");
   const [getStudentAchievements, { data: studentAchievementsData }] =
     useGetStudentAchievementsMutation();
+  const [getStudentPointTransactions, { data: pointTransactionsData, isLoading: pointTransactionsLoading, error: pointTransactionsError }] =
+    useGetStudentPointTransactionsMutation();
   const [getGroupAchievements, { data: groupAchievementsData }] =
     useGetGroupAchievementsMutation();
 
-  const student_details = JSON.parse(localStorage.getItem("student_details"));
+  // Use global context for student details to get real-time updates
+  const { studentDetails } = useMyContext();
+  const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
   const userData = useSelector((state) => state.user.user);
 
-  console.log("User Data:", userData);
-
   useEffect(() => {
-    getStudentAchievements({ student_id: userData?._id });
-    getGroupAchievements({ group_id: student_details?.group?._id });
-  }, []);
+    if (userData?._id) {
+      getStudentAchievements({ student_id: userData._id });
+      getStudentPointTransactions({ student_id: userData._id });
+    }
+    if (student_details?.group?._id) {
+      getGroupAchievements({ group_id: student_details.group._id });
+    }
+  }, [userData?._id, student_details?.group?._id]);
+
+  // Monitor specific point changes with more granular updates
+  useEffect(() => {
+    if (userData?._id && studentDetails?.student?.current_points !== undefined) {
+      getStudentPointTransactions({ student_id: userData._id });
+    }
+  }, [studentDetails?.student?.current_points]);
+
+  // Add effect to refresh point transactions when student context changes
+  useEffect(() => {
+    if (userData?._id && studentDetails?.student) {
+      // Refresh both achievements and point transactions when student data changes
+      getStudentPointTransactions({ student_id: userData._id });
+      getStudentAchievements({ student_id: userData._id });
+    }
+  }, [studentDetails?.student?.current_points, studentDetails?.student?.total_points_earned]);
+
+  // Additional effect to catch any studentDetails changes (for immediate updates)
+  useEffect(() => {
+    if (userData?._id && studentDetails) {
+      // Small delay to ensure backend has processed the transaction
+      const timeoutId = setTimeout(() => {
+        getStudentPointTransactions({ student_id: userData._id });
+      }, 500); // 500ms delay
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [studentDetails]);
+
+  // Manual refresh function for testing
+  const handleManualRefresh = () => {
+    if (userData?._id) {
+      getStudentPointTransactions({ student_id: userData._id });
+      getStudentAchievements({ student_id: userData._id });
+    }
+  };
+
+  // Add effect to refresh when component becomes visible/focused
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userData?._id) {
+        getStudentPointTransactions({ student_id: userData._id });
+      }
+    };
+
+    const handleFocus = () => {
+      if (userData?._id) {
+        getStudentPointTransactions({ student_id: userData._id });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [userData?._id]);
 
   return (
     <>
@@ -92,7 +154,24 @@ const Achievement = () => {
           )}
 
           <div className="leader-board">
-            <div className="leaderbord-title">Achievements</div>
+            <div className="leaderbord-title">
+              Achievements
+              <button 
+                onClick={handleManualRefresh}
+                style={{ 
+                  marginLeft: '10px', 
+                  padding: '5px 10px', 
+                  fontSize: '12px',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Refresh
+              </button>
+            </div>
             <div className="tab-menu">
               <span
                 onClick={() => setActiveTab("individual")}
@@ -128,26 +207,49 @@ const Achievement = () => {
           {/* Data Mapping */}
           {activeTab === "individual" ? (
             <div className="tabmenu-content-table achivement-table">
-              {studentAchievementsData?.data?.payload?.student_achievements?.map(
-                (data) => (
-                  <div className="achievements-board-single-row-table">
-                    <div className="reason">{data?.reason}</div>
-                    <div>{fullDate(data.date)}</div>
+              {pointTransactionsLoading && (
+                <div className="achievements-board-single-row-table">
+                  <div className="reason">Loading point transactions...</div>
+                  <div>-</div>
+                  <div className="amount">-</div>
+                </div>
+              )}
+              {pointTransactionsError && (
+                <div className="achievements-board-single-row-table">
+                  <div className="reason">Error loading point transactions</div>
+                  <div>-</div>
+                  <div className="amount">-</div>
+                </div>
+              )}
+              {/* Display real point transactions data only */}
+              {!pointTransactionsLoading && !pointTransactionsError && 
+               pointTransactionsData?.data?.transactions?.length > 0 &&
+               pointTransactionsData.data.transactions.map(
+                (data, index) => (
+                  <div key={data._id || index} className="achievements-board-single-row-table">
+                    <div className="reason">{data?.reason || "Point Transaction"}</div>
+                    <div>{fullDate(data.date || data.created_at)}</div>
                     <div
                       className={`amount ${
-                        data?.type === "credit"
+                        data?.type === "credit" || (!data?.type && data?.amount > 0)
                           ? "postive_amount"
                           : "nagative_amount"
                       }`}
                     >
-                      {`${
-                        data?.type === "debit"
-                          ? `-${data?.points}`
-                          : `+${data?.points}`
-                      }` || "-"}
+                      {data?.points || (data?.type === "credit" ? `+${data?.amount}` : `-${Math.abs(data?.amount)}`)}
                     </div>
                   </div>
                 )
+              )}
+              {/* Show message if no real transactions available */}
+              {!pointTransactionsLoading && !pointTransactionsError && 
+               (!pointTransactionsData?.data?.transactions || 
+                pointTransactionsData?.data?.transactions?.length === 0) && (
+                <div className="achievements-board-single-row-table">
+                  <div className="reason">No point transactions found</div>
+                  <div>-</div>
+                  <div className="amount">-</div>
+                </div>
               )}
             </div>
           ) : (

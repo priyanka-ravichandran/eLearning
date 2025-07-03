@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import "./Header.css";
-import React from "react";
+import React, { useEffect } from "react";
 import { Navbar, Nav, NavDropdown } from "react-bootstrap";
 import shell from "../../Images/nav/shell.png";
 import qa from "../../Images//qa.png";
@@ -10,6 +10,7 @@ import dummy_profile_picture from "../../Images/dummy_profile_picture.svg";
 import { useMyContext } from "../../MyContextProvider";
 import { persistor } from "../../redux/store";
 import { toast } from "react-toastify";
+import UserAvatar from "../UserAvatar";
 
 function Header() {
   const { studentDetails, setStudentDetails } = useMyContext();
@@ -25,6 +26,15 @@ function Header() {
   
   // Use context first, fallback to localStorage
   const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
+
+  // Force re-render when studentDetails change
+  useEffect(() => {
+    console.log('🔄 Header - Student details updated:', {
+      points: studentDetails?.student?.current_points,
+      totalPoints: studentDetails?.student?.total_points_earned,
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [studentDetails]);
 
   return (
     <Navbar expand="lg" className="d-flex justify-content-between px-5 header">
@@ -84,10 +94,11 @@ function Header() {
         <NavDropdown
           className="ps-4"
           title={
-            <img
+            <UserAvatar 
+              studentDetails={studentDetails}
+              size="32"
+              round={true}
               className="options"
-              src={dummy_profile_picture}
-              alt="My Profile"
             />
           }
           id="collapsible-nav-dropdown"

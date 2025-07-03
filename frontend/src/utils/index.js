@@ -101,5 +101,5 @@ export const QUESTION_TOPICS = [
   "Equations",
 ];
 
-// Export the refreshStudentDetails utility function
-export { refreshStudentDetails } from "./refreshStudentDetails";
+// Export the refreshStudentDetails utility functions
+export { refreshStudentDetails, refreshPointsIfCurrentUser } from "./refreshStudentDetails";

@@ -136,6 +136,17 @@ function App() {
       console.error("Error fetching data:", error.message);
     }
   };
+  
+  // Set up global refresh function for reactions and other point updates
+  useEffect(() => {
+    window.refreshUserPoints = getStudentdetails;
+    
+    // Cleanup on unmount
+    return () => {
+      delete window.refreshUserPoints;
+    };
+  }, []);
+  
   return (
     <div className="App">
       <Provider store={store}>

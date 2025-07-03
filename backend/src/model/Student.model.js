@@ -51,6 +51,20 @@ const StudentSchema = new Schema(
         points: Number,
       },
     ],
+    points_breakdown: {
+      llm_score_points: {
+        type: Number,
+        default: 0,
+      },
+      question_posting_points: {
+        type: Number,
+        default: 0,
+      },
+      reaction_points: {
+        type: Number,
+        default: 0,
+      },
+    },
     avatar: {
       seed: {
         type: String,
