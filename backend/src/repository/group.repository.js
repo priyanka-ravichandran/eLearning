@@ -38,8 +38,12 @@ const update_group_points = async (
   try {
     // Check if a record with the given userId exists
     let group = await Group.findOne({ team_members: student_id });
-    // const existingStudentDetails = await Group.findById(group_id)
     console.log("group", group);
+    
+    if (!group) {
+      throw new Error("Group not found for student");
+    }
+    
     if (transaction_type === "credit") {
       group.total_points_earned += points;
       group.current_points += points;
@@ -56,13 +60,15 @@ const update_group_points = async (
     });
 
     await group.save();
+    
+    // Auto-sync village level based on new points
+    await syncVillageLevel(group._id);
 
     await update_group_rank();
 
     return { success: true };
   } catch (error) {
     console.log(error);
-
     throw new Error("Error updating the points");
   }
 };
@@ -177,23 +183,41 @@ const get_group_leaderboard = async () => {
 };
 
 const updateVillageLevel = async (group_id, points_debited) => {
-  {
-    try {
-      // Check if a record with the given userId exists
-      const groupDetails = await Group.findById(group_id);
-
-      groupDetails.village_level += 1;
-
-      groupDetails.current_points -= points_debited;
-
-      groupDetails.save();
-
-      return groupDetails;
-    } catch (error) {
-      console.log(error);
-
-      throw new Error("Error updating the points");
+  try {
+    // Get the current group
+    const groupDetails = await Group.findById(group_id);
+    if (!groupDetails) {
+      throw new Error("Group not found");
     }
+
+    // Check if user has enough current points
+    if (groupDetails.current_points < points_debited) {
+      throw new Error("Insufficient points");
+    }
+    
+    // Debit the points
+    groupDetails.current_points -= points_debited;
+    
+    // Simple increment: each purchase increases village level by 1
+    // This matches the original game logic where you buy your way up
+    groupDetails.village_level += 1;
+    
+    // Cap at maximum level 7
+    if (groupDetails.village_level > 7) {
+      groupDetails.village_level = 7;
+    }
+    
+    await groupDetails.save();
+
+    console.log(`🏠 Village level updated: ${group_id}`);
+    console.log(`   Points spent: ${points_debited}`);
+    console.log(`   Current points: ${groupDetails.current_points}`);
+    console.log(`   Village Level: ${groupDetails.village_level}`);
+
+    return groupDetails;
+  } catch (error) {
+    console.error("Error updating village level:", error);
+    throw new Error("Error updating the village level: " + error.message);
   }
 };
 
@@ -234,6 +258,37 @@ const exit_group = async (group_id, student_id) => {
   return group;
 };
 
+// Auto-sync village level based on total points earned (called when points are updated)
+const syncVillageLevel = async (group_id) => {
+  try {
+    const { calculateVillageLevel } = require("../utils/villageSystem");
+    
+    const groupDetails = await Group.findById(group_id);
+    if (!groupDetails) {
+      throw new Error("Group not found");
+    }
+
+    // Calculate what the village level should be based on TOTAL points earned
+    const correctVillageLevel = calculateVillageLevel(groupDetails.total_points_earned);
+    
+    // Update if different
+    if (groupDetails.village_level !== correctVillageLevel) {
+      const oldLevel = groupDetails.village_level;
+      groupDetails.village_level = correctVillageLevel;
+      await groupDetails.save();
+      
+      console.log(`🏠 Auto-synced village level: ${group_id}`);
+      console.log(`   Current Points: ${groupDetails.current_points}`);
+      console.log(`   Total Points Earned: ${groupDetails.total_points_earned}`);
+      console.log(`   Village Level: ${oldLevel} -> ${correctVillageLevel}`);
+    }
+
+    return groupDetails;
+  } catch (error) {
+    console.error("Error syncing village level:", error);
+    throw new Error("Error syncing village level");
+  }
+};
 
 module.exports = {
   findById,
@@ -244,4 +299,5 @@ module.exports = {
   get_group_achievements,
   get_group_leaderboard,
   updateVillageLevel,
+  syncVillageLevel,
 };

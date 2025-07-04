@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./LandingPage.css";
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Modal } from "react-bootstrap";
+import { Container, Row, Col, Modal, Badge, ProgressBar } from "react-bootstrap";
 import village1 from "../../Images/village1.png";
 import village2 from "../../Images/village2.png";
 import village3 from "../../Images/village3.png";
@@ -18,6 +18,7 @@ import shell from "../../Images/shell.png";
 import shield from "../../Images/shield.png";
 import trees from "../../Images/trees.png";
 import { useMyContext } from "../../MyContextProvider";
+import { useGetVillageMilestonesMutation, useUpdateVillageLevelMutation } from "../../redux/api/groupsApi";
 import { toast } from "react-toastify";
 
 const base_url = process.env.REACT_APP_BASE_URL;
@@ -31,10 +32,13 @@ function LandingPage() {
   const [show, setShow] = useState(false);
   const [showEmotionPopup, setShowEmotionPopup] = useState(true);
   const [emotion, setEmotion] = useState("");
+  const [milestoneData, setMilestoneData] = useState(null);
+  const [getVillageMilestones] = useGetVillageMilestonesMutation();
+  const [updateVillageLevel] = useUpdateVillageLevelMutation();
+  
   const handleMouseMove = (e) => {
     const newCoords = { x: e.screenX, y: e.screenY };
     setCoord(newCoords);
-    console.log("Mouse Coordinates:", newCoords);
   };
   // Handle Emotion Selection
   const handleEmotionClick = (selectedEmotion) => {
@@ -51,7 +55,6 @@ function LandingPage() {
     return () => clearInterval(timer); // Clean up interval on unmount
   }, []);
 
-
   useEffect(() => {
     setStudentDetails(student_details);
   }, []);
@@ -61,7 +64,32 @@ function LandingPage() {
       navigate("/login");
     }
     getStudentdetails();
+    if (student_details?.group?._id) {
+      fetchMilestoneData();
+    }
   }, []);
+
+  // Fetch milestone data when group is available
+  useEffect(() => {
+    if (studentDetails?.group?._id) {
+      fetchMilestoneData();
+    }
+  }, [studentDetails?.group?._id]);
+
+  const fetchMilestoneData = async () => {
+    try {
+      const groupId = studentDetails?.group?._id || student_details?.group?._id;
+      if (!groupId) return;
+
+      const response = await getVillageMilestones({ group_id: groupId });
+      if (response.data?.status) {
+        setMilestoneData(response.data.data);
+        console.log("🏆 Village milestone data:", response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching milestone data:", error);
+    }
+  };
 
   const village_levels = {
     1: village1,
@@ -84,25 +112,52 @@ function LandingPage() {
 
   const buyElement = async () => {
     try {
-      const requestOptions = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ group_id: student_details?.group?._id, points_debited: 50 }),
-      };
+      const groupId = studentDetails?.group?._id || student_details?.group?._id;
+      if (!groupId) {
+        toast.error("Group not found");
+        return;
+      }
 
-      const response = await fetch(base_url + "/group/update_village_level", requestOptions);
-      const data = await response.json();
-      console.log("Updated student details", data.data);
+      // Check if user has enough points
+      const currentPoints = studentDetails?.group?.current_points || 0;
+      if (currentPoints < 50) {
+        toast.error("Insufficient points to buy this item");
+        return;
+      }
 
-      const updatedStudentDetails = {
-        student: student_details.student,
-        group: data.data,
-      };
+      console.log("🛒 Buying village element for group:", groupId);
+      
+      const response = await updateVillageLevel({ 
+        group_id: groupId, 
+        points_debited: 50 
+      });
 
-      toast.success("Village level has been upgraded successfully");
-      setStudentDetails(updatedStudentDetails);
+      if (response.data?.status) {
+        console.log("✅ Village level updated:", response.data.data);
+        
+        // Update student details with new group data
+        const updatedStudentDetails = {
+          student: student_details.student,
+          group: response.data.data,
+        };
+
+        toast.success("Village level has been upgraded successfully!");
+        setStudentDetails(updatedStudentDetails);
+        
+        // Update localStorage as well
+        localStorage.setItem("student_details", JSON.stringify(updatedStudentDetails));
+        
+        // Refresh milestone data after purchase
+        await fetchMilestoneData();
+        
+        // Also refresh student details to get updated group info
+        await getStudentdetails();
+      } else {
+        toast.error(response.data?.message || "Failed to upgrade village level");
+      }
     } catch (error) {
-      console.error("Error fetching data:", error.message);
+      console.error("Error buying village element:", error);
+      toast.error("Error upgrading village level");
     }
   };
 
@@ -177,6 +232,36 @@ function LandingPage() {
                   <p className="pt-3">
                     My Current Village level - <span className="bold">Level {studentDetails?.group?.village_level}</span>
                   </p>
+                  
+                  {/* Milestone Progress Display */}
+                  {milestoneData && (
+                    <div className="milestone-progress mt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <span>Village Progress</span>
+                        <span>
+                          <img className="shell me-1" src={shell} alt="Points" />
+                          {milestoneData.group.current_points} points
+                        </span>
+                      </div>
+                      
+                      {milestoneData.milestone.canUpgrade ? (
+                        <div className="alert alert-success py-2">
+                          🎉 You can upgrade to Level {milestoneData.milestone.targetLevel}!
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="d-flex justify-content-between text-small mb-1">
+                            <span>Next Level: {milestoneData.milestone.currentLevel + 1}</span>
+                            <span>{milestoneData.milestone.pointsNeeded} more points needed</span>
+                          </div>
+                          <ProgressBar 
+                            now={((milestoneData.milestone.pointsForNextLevel - milestoneData.milestone.pointsNeeded) / milestoneData.milestone.pointsForNextLevel) * 100}
+                            style={{ height: '8px' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </Col>
 
                 {studentDetails?.group?.village_level < 7 && (
@@ -192,8 +277,7 @@ function LandingPage() {
                       </div>
                       <button
                         className="my-3 py-2 buy-btn"
-                        onClick={buyElement}
-                        disabled={studentDetails?.group?.current_points < 50}
+                        onClick={() => {buyElement()}}
                       >
                         BUY
                       </button>

@@ -60,6 +60,16 @@ export const groupsApi = createApi({
           };
         },
       }),
+      getVillageMilestones: builder.mutation({
+        query: (body) => {
+          console.log("body", body);
+          return {
+            url: `/group/get_village_milestones`,
+            method: "POST",
+            body,
+          };
+        },
+      }),
       createGroup: builder.mutation({
         query: (body) => {
           console.log("body", body);
@@ -76,4 +86,4 @@ export const groupsApi = createApi({
 // Export hooks for usage in functional components, which are
 // auto-generated based on the defined endpoints\
 export const { useGetGroupDetailsMutation,useUpdateVillageLevelMutation,useUpdateGroupPointsMutation,useGetGroupAchievementsMutation,
-useGetGroupLeaderBoardMutation,useCreateGroupMutation } = groupsApi;
+useGetGroupLeaderBoardMutation,useGetVillageMilestonesMutation,useCreateGroupMutation } = groupsApi;

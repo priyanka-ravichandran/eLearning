@@ -412,6 +412,52 @@ const isGroupLeader = async (req, res) => {
   }
 };
 
+// Get village milestone information
+const getVillageMilestones = async (req, res) => {
+  try {
+    const { group_id } = req.body;
+    
+    if (!group_id) {
+      return response(res, StatusCodes.BAD_REQUEST, false, {}, "Group ID is required");
+    }
+
+    const group = await Group.findById(group_id);
+    if (!group) {
+      return response(res, StatusCodes.NOT_FOUND, false, {}, "Group not found");
+    }
+
+    const { 
+      getVillageMilestone, 
+      getAllMilestones 
+    } = require("../../utils/villageSystem");
+    
+    const currentMilestone = getVillageMilestone(group.current_points, group.village_level);
+    const allMilestones = getAllMilestones();
+    
+    const responseData = {
+      group: {
+        id: group._id,
+        name: group.name,
+        current_points: group.current_points,
+        village_level: group.village_level
+      },
+      milestone: currentMilestone,
+      all_milestones: allMilestones
+    };
+
+    return response(res, StatusCodes.OK, true, responseData);
+  } catch (error) {
+    console.error("Error getting village milestones:", error);
+    return response(
+      res,
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      false,
+      {},
+      error.message
+    );
+  }
+};
+
 module.exports = {
   getGroupDetails,
   create_group,
@@ -423,5 +469,5 @@ module.exports = {
   get_group_leaderboard,
   getGroupByStudent,
   isGroupLeader,
-  isGroupLeader
+  getVillageMilestones
 };

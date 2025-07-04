@@ -5,7 +5,10 @@ const {
   join_group,
   exit_group,
   getGroupByStudent,
-  isGroupLeader
+  isGroupLeader,
+  updateVillageLevel,
+  update_group_points,
+  getVillageMilestones
 } = require("../controllers/group/group.controller");
 const isAuth = require("../middleware/auth");
 const router = Router();
@@ -16,5 +19,8 @@ router.post("/create_group", create_group);
 router.post("/join_group", join_group);
 router.post("/exit_group", exit_group);
 router.post("/is_group_leader", isGroupLeader);
+router.post("/update_village_level", updateVillageLevel);
+router.post("/update_group_points", update_group_points);
+router.post("/get_village_milestones", getVillageMilestones);
 
 module.exports = router;
