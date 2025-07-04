@@ -516,11 +516,34 @@ module.exports = {
       points_earned: llm.score
     });
 
+    // Award points and create achievement for LLM score
     if (llm.score > 0) {
-      await Student.updateOne(
-        { _id: student_id },
-        { $inc: { current_points: llm.score, total_points_earned: llm.score } }
+      console.log("=== LLM SCORE POINTS AWARD ===");
+      console.log("Awarding", llm.score, "points for LLM score to student:", student_id);
+      
+      // Use the proper student repository function to award points AND create achievement
+      const studentRepo = require("./student.repository");
+      const pointsResult = await studentRepo.update_student_points(
+        student_id,
+        llm.score,
+        "credit",
+        `Helped a friend (LLM Score: ${llm.score}/10)`
       );
+      
+      console.log("LLM points award result:", pointsResult);
+      
+      if (pointsResult.success) {
+        console.log("✅ LLM score points and achievement created successfully!");
+        
+        // Update LLM score points breakdown
+        await Student.findByIdAndUpdate(
+          student_id,
+          { $inc: { "points_breakdown.llm_score_points": llm.score } }
+        );
+        console.log("✅ LLM score points breakdown updated!");
+      } else {
+        console.error("❌ Failed to award LLM score points:", pointsResult.error);
+      }
     }
 
     await q.save();

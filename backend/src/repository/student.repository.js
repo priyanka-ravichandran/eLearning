@@ -116,11 +116,12 @@ const update_student_points = async (
       return { success: false, error: "Failed to update student points" };
     }
     
-    // Step 2: Add achievement separately
+    // Step 2: Add achievement using raw MongoDB to avoid schema issues
     console.log("Step 2: Adding achievement...");
     try {
-      const achievementUpdate = await Student.findByIdAndUpdate(
-        student_id,
+      const db = require('mongoose').connection.db;
+      const achievementResult = await db.collection('students').updateOne(
+        { _id: require('mongoose').Types.ObjectId(student_id) },
         {
           $push: {
             achievements: {
@@ -130,15 +131,13 @@ const update_student_points = async (
               points: points
             }
           }
-        },
-        { new: true, runValidators: true }
+        }
       );
       
-      if (!achievementUpdate) {
-        console.log("Failed to add achievement but points were updated");
-        // Points were updated successfully, so we still return success
+      if (achievementResult.modifiedCount > 0) {
+        console.log("✅ Achievement added successfully using raw MongoDB");
       } else {
-        console.log("✅ Achievement added successfully");
+        console.log("❌ Failed to add achievement - no documents modified");
       }
     } catch (achievementError) {
       console.error("Achievement add error:", achievementError.message);
@@ -246,67 +245,6 @@ const get_student_achievements = async (student_id) => {
   }
 };
 
-const get_point_transactions = async (student_id) => {
-  try {
-    console.log("Getting point transactions for student ID:", student_id);
-    
-    // Check if ID is valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(student_id)) {
-      console.log("Invalid student ID format:", student_id);
-      throw new Error("Invalid student ID format");
-    }
-    
-    // Get student with achievements (which are our point transactions)
-    const student = await Student.findById(student_id);
-    
-    if (!student) {
-      console.log("Student not found with ID:", student_id);
-      throw new Error("Student not found");
-    }
-    
-    // Format transactions for display
-    let formattedTransactions = [];
-    if (student.achievements && student.achievements.length > 0) {
-      formattedTransactions = student.achievements.map(achievement => {
-        return {
-          reason: achievement.reason,
-          date: achievement.date,
-          created_at: achievement.date, // Add created_at for frontend compatibility
-          formatted_date: new Date(achievement.date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long', 
-            day: 'numeric'
-          }),
-          type: achievement.type,
-          points: achievement.type === 'credit' ? 
-            `+${achievement.points}` : 
-            `-${achievement.points}`,
-          points_value: achievement.points,
-          // Add amount field to match what frontend expects
-          amount: achievement.points
-        };
-      });
-      
-      // Sort by date (newest first)
-      formattedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-    }
-    
-    console.log(`Found ${formattedTransactions.length} point transactions for student ${student_id}`);
-    
-    return {
-      success: true,
-      transactions: formattedTransactions,
-      points_info: {
-        current_points: student.current_points || 0,
-        total_points_earned: student.total_points_earned || 0
-      }
-    };
-  } catch (error) {
-    console.log("Error in get_point_transactions:", error);
-    throw new Error(`Error fetching point transactions: ${error.message}`);
-  }
-};
-
 const get_inidividual_leaderboard = async () => {
   try {
     update_individual_rank();
@@ -344,6 +282,5 @@ module.exports = {
   findStudentByEmail,
   update_student_points,
   get_student_achievements,
-  get_point_transactions,
   get_inidividual_leaderboard,
 };

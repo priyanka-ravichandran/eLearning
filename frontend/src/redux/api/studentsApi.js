@@ -8,7 +8,7 @@ export const studentsApi = createApi({
   baseQuery: customFetchBaseQuery({
     baseUrl: process.env.REACT_APP_BASE_URL,
   }),
-  tagTypes: ["GetStudent"],
+  tagTypes: ["GetStudent", "PointTransactions", "StudentAchievements"],
   endpoints: (builder) => ({
     getStudentDetails: builder.mutation({
       query: (body) => {
@@ -39,6 +39,7 @@ export const studentsApi = createApi({
           body,
         };
       },
+      providesTags: ["StudentAchievements"],
     }),
     getStudentPointTransactions: builder.mutation({
       query: (body) => {
@@ -49,6 +50,7 @@ export const studentsApi = createApi({
           body,
         };
       },
+      providesTags: ["PointTransactions"],
     }),
     getIndividualLeaderBoard: builder.mutation({
       query: (body) => {

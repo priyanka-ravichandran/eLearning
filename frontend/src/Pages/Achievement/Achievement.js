@@ -48,18 +48,60 @@ const Achievement = () => {
 
   // Use global context for student details to get real-time updates
   const { studentDetails } = useMyContext();
-  const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
+  const [localStudentDetails, setLocalStudentDetails] = useState(() => {
+    const stored = localStorage.getItem("student_details");
+    return stored ? JSON.parse(stored) : null;
+  });
+  
+  // Use the most up-to-date student details
+  const student_details = studentDetails || localStudentDetails;
   const userData = useSelector((state) => state.user.user);
+
+  // Listen for localStorage and group status changes
+  useEffect(() => {
+    const handleStorageUpdate = (e) => {
+      if (e.detail?.key === 'student_details' && e.detail?.value) {
+        try {
+          const newStudentDetails = JSON.parse(e.detail.value);
+          console.log("🔄 Achievement: LocalStorage updated, refreshing student details", newStudentDetails);
+          setLocalStudentDetails(newStudentDetails);
+        } catch (error) {
+          console.error("Error parsing updated student details:", error);
+        }
+      }
+    };
+
+    const handleGroupStatusChange = (e) => {
+      console.log("🏆 Achievement: Group status changed", e.detail);
+      // Force refresh of achievements and group data
+      if (userData?._id) {
+        getStudentAchievements({ student_id: userData._id });
+        getStudentPointTransactions({ student_id: userData._id });
+      }
+      if (e.detail?.groupData?._id) {
+        getGroupAchievements({ group_id: e.detail.groupData._id });
+      }
+    };
+
+    window.addEventListener('localStorageUpdate', handleStorageUpdate);
+    window.addEventListener('groupStatusChanged', handleGroupStatusChange);
+
+    return () => {
+      window.removeEventListener('localStorageUpdate', handleStorageUpdate);
+      window.removeEventListener('groupStatusChanged', handleGroupStatusChange);
+    };
+  }, [userData?._id, getStudentAchievements, getStudentPointTransactions, getGroupAchievements]);
 
   useEffect(() => {
     if (userData?._id) {
       getStudentAchievements({ student_id: userData._id });
       getStudentPointTransactions({ student_id: userData._id });
     }
-    if (student_details?.group?._id) {
-      getGroupAchievements({ group_id: student_details.group._id });
+    if (student_details?.student?.group?._id) {
+      console.log("🏆 Loading group achievements for group:", student_details.student.group._id);
+      getGroupAchievements({ group_id: student_details.student.group._id });
     }
-  }, [userData?._id, student_details?.group?._id]);
+  }, [userData?._id, student_details?.student?.group?._id, getStudentAchievements, getStudentPointTransactions, getGroupAchievements]);
 
   // Monitor specific point changes with more granular updates
   useEffect(() => {
@@ -89,13 +131,57 @@ const Achievement = () => {
     }
   }, [studentDetails]);
 
-  // Manual refresh function for testing
-  const handleManualRefresh = () => {
-    if (userData?._id) {
-      getStudentPointTransactions({ student_id: userData._id });
-      getStudentAchievements({ student_id: userData._id });
+  // Debug logging for point transactions data
+  useEffect(() => {
+    console.log('🔍 Point transactions data updated:', pointTransactionsData);
+    if (pointTransactionsData?.data?.transactions) {
+      console.log('📊 Current transactions count:', pointTransactionsData.data.transactions.length);
+      pointTransactionsData.data.transactions.forEach((transaction, index) => {
+        console.log(`Transaction ${index + 1}:`, transaction);
+      });
+    } else {
+      console.log('❌ No transactions found in expected data structure');
+      console.log('Full response structure:', pointTransactionsData);
     }
-  };
+  }, [pointTransactionsData]);
+
+  // Debug logging for achievements data
+  useEffect(() => {
+    console.log('🔍 Student achievements data updated:', studentAchievementsData);
+    if (studentAchievementsData?.data?.achievements) {
+      console.log('🏆 Current achievements count:', studentAchievementsData.data.achievements.length);
+      studentAchievementsData.data.achievements.forEach((achievement, index) => {
+        console.log(`Achievement ${index + 1}:`, achievement);
+      });
+    } else {
+      console.log('❌ No achievements found in expected data structure');
+      console.log('Full achievements response:', studentAchievementsData);
+    }
+  }, [studentAchievementsData]);
+
+  // Debug logging for group data
+  useEffect(() => {
+    console.log('🔍 DEBUG - Student Details from context:', studentDetails);
+    console.log('🔍 DEBUG - Local student_details state:', localStudentDetails);
+    console.log('🔍 DEBUG - Merged student_details:', student_details);
+    console.log('🔍 DEBUG - User Data:', userData);
+    console.log('🔍 DEBUG - Group ID from student_details:', student_details?.student?.group?._id);
+    console.log('🔍 DEBUG - Group object:', student_details?.student?.group);
+  }, [studentDetails, localStudentDetails, student_details, userData]);
+
+  // Debug logging for group achievements data
+  useEffect(() => {
+    console.log('🔍 Group achievements data updated:', groupAchievementsData);
+    if (groupAchievementsData?.data?.payload?.group_achievements) {
+      console.log('🏆 Current group achievements count:', groupAchievementsData.data.payload.group_achievements.length);
+      groupAchievementsData.data.payload.group_achievements.forEach((achievement, index) => {
+        console.log(`Group Achievement ${index + 1}:`, achievement);
+      });
+    } else {
+      console.log('❌ No group achievements found in expected data structure');
+      console.log('Full group achievements response:', groupAchievementsData);
+    }
+  }, [groupAchievementsData]);
 
   // Add effect to refresh when component becomes visible/focused
   useEffect(() => {
@@ -156,21 +242,6 @@ const Achievement = () => {
           <div className="leader-board">
             <div className="leaderbord-title">
               Achievements
-              <button 
-                onClick={handleManualRefresh}
-                style={{ 
-                  marginLeft: '10px', 
-                  padding: '5px 10px', 
-                  fontSize: '12px',
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                🔄 Refresh
-              </button>
             </div>
             <div className="tab-menu">
               <span
@@ -221,7 +292,7 @@ const Achievement = () => {
                   <div className="amount">-</div>
                 </div>
               )}
-              {/* Display real point transactions data only */}
+              {/* Display real point transactions data from the correct API response structure */}
               {!pointTransactionsLoading && !pointTransactionsError && 
                pointTransactionsData?.data?.transactions?.length > 0 &&
                pointTransactionsData.data.transactions.map(
@@ -241,10 +312,34 @@ const Achievement = () => {
                   </div>
                 )
               )}
-              {/* Show message if no real transactions available */}
+              {/* Fallback to achievements data if point transactions are not available */}
               {!pointTransactionsLoading && !pointTransactionsError && 
                (!pointTransactionsData?.data?.transactions || 
-                pointTransactionsData?.data?.transactions?.length === 0) && (
+                pointTransactionsData?.data?.transactions?.length === 0) &&
+               studentAchievementsData?.data?.achievements?.length > 0 &&
+               studentAchievementsData.data.achievements.map(
+                (data, index) => (
+                  <div key={data._id || index} className="achievements-board-single-row-table">
+                    <div className="reason">{data?.reason || "Achievement"}</div>
+                    <div>{fullDate(data.date || data.created_at)}</div>
+                    <div
+                      className={`amount ${
+                        data?.type === "credit" || (!data?.type && data?.points_value > 0)
+                          ? "postive_amount"
+                          : "nagative_amount"
+                      }`}
+                    >
+                      {data?.points || (data?.type === "credit" ? `+${data?.points_value}` : `-${Math.abs(data?.points_value)}`)}
+                    </div>
+                  </div>
+                )
+              )}
+              {/* Show message if no transactions or achievements available */}
+              {!pointTransactionsLoading && !pointTransactionsError && 
+               (!pointTransactionsData?.data?.transactions || 
+                pointTransactionsData?.data?.transactions?.length === 0) &&
+               (!studentAchievementsData?.data?.achievements || 
+                studentAchievementsData?.data?.achievements?.length === 0) && (
                 <div className="achievements-board-single-row-table">
                   <div className="reason">No point transactions found</div>
                   <div>-</div>

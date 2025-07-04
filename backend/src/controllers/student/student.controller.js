@@ -79,9 +79,13 @@ const getStudentAchievements = async (req, res) => {
     console.log("Getting achievements for student:", student_id);
 
     try {
-      // Get student with all details
-      const student = await Student.findById(student_id);
-      if (!student) {
+      // Use raw MongoDB query to get achievements since Mongoose schema has issues
+      const db = require('mongoose').connection.db;
+      const studentRaw = await db.collection('students').findOne({ 
+        _id: require('mongoose').Types.ObjectId(student_id) 
+      });
+      
+      if (!studentRaw) {
         return response(
           res,
           StatusCodes.NOT_FOUND,
@@ -93,8 +97,8 @@ const getStudentAchievements = async (req, res) => {
       
       // Get achievements and format them for the UI
       let achievements = [];
-      if (student.achievements && student.achievements.length > 0) {
-        achievements = student.achievements.map(achievement => {
+      if (studentRaw.achievements && studentRaw.achievements.length > 0) {
+        achievements = studentRaw.achievements.map(achievement => {
           // Format the achievement data
           return {
             reason: achievement.reason,
@@ -116,14 +120,14 @@ const getStudentAchievements = async (req, res) => {
       
       // Include points breakdown for UI
       const pointsBreakdown = {
-        current_points: student.current_points || 0,
-        total_points_earned: student.total_points_earned || 0,
-        breakdown: student.points_breakdown || {
+        current_points: studentRaw.current_points || 0,
+        total_points_earned: studentRaw.total_points_earned || 0,
+        breakdown: studentRaw.points_breakdown || {
           llm_score_points: 0,
           question_posting_points: 0,
           reaction_points: 0
         },
-        individual_rank: student.individual_rank || 0
+        individual_rank: studentRaw.individual_rank || 0
       };
 
       return response(
@@ -198,9 +202,13 @@ const getPointTransactions = async (req, res) => {
     console.log("Getting point transactions for student:", student_id);
 
     try {
-      // Get student with all details
-      const student = await Student.findById(student_id);
-      if (!student) {
+      // Use raw MongoDB query to get achievements since Mongoose schema has issues
+      const db = require('mongoose').connection.db;
+      const studentRaw = await db.collection('students').findOne({ 
+        _id: require('mongoose').Types.ObjectId(student_id) 
+      });
+      
+      if (!studentRaw) {
         return response(
           res,
           StatusCodes.NOT_FOUND,
@@ -212,8 +220,8 @@ const getPointTransactions = async (req, res) => {
       
       // Get achievements (which serve as point transactions) and format them for the UI
       let transactions = [];
-      if (student.achievements && student.achievements.length > 0) {
-        transactions = student.achievements.map(achievement => {
+      if (studentRaw.achievements && studentRaw.achievements.length > 0) {
+        transactions = studentRaw.achievements.map(achievement => {
           // Format the transaction data to match frontend expectations
           return {
             reason: achievement.reason,
@@ -239,8 +247,8 @@ const getPointTransactions = async (req, res) => {
       
       // Include current points info
       const pointsInfo = {
-        current_points: student.current_points || 0,
-        total_points_earned: student.total_points_earned || 0
+        current_points: studentRaw.current_points || 0,
+        total_points_earned: studentRaw.total_points_earned || 0
       };
 
       console.log(`Successfully retrieved ${transactions.length} transactions for student ${student_id}`);

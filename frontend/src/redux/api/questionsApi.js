@@ -8,7 +8,7 @@ export const questionsApi = createApi({
   baseQuery: customFetchBaseQuery({
     baseUrl: process.env.REACT_APP_BASE_URL,
   }),
-  tagTypes: ["GetReportList", "MyQuestions", "GetQuestionDetail"],
+  tagTypes: ["GetReportList", "MyQuestions", "GetQuestionDetail", "PointTransactions", "StudentAchievements"],
   endpoints: (builder) => ({
     getAllQuestions: builder.query({
       query: (body) => {
@@ -38,7 +38,7 @@ export const questionsApi = createApi({
           body,
         };
       },
-      invalidatesTags: ["MyQuestions"],
+      invalidatesTags: ["MyQuestions", "PointTransactions", "StudentAchievements"],
     }),
     getQuestionDetail: builder.query({
       query: (body) => {

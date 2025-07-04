@@ -58,14 +58,14 @@ const router = createBrowserRouter([
         path: "/help-friend-details/:id",
         element: <HelpFriendDetails />,
       },
-      // {
-      //   path: "/question-of-the-day",
-      //   element: <QuestionOfTheDay />,
-      // },
-      // {
-      //   path: "/question-of-the-day/:id",
-      //   element: <QuestionOfTheDayDetail />,
-      // },
+      {
+        path: "/question-of-the-day",
+        element: <QuestionOfTheDay />,
+      },
+      {
+        path: "/question-of-the-day/:id",
+        element: <QuestionOfTheDayDetail />,
+      },
       {
         path: "/post-question",
         element: <PostQuestion />,
@@ -113,13 +113,21 @@ function App() {
   });
   const getStudentdetails = async () => {
     try {
+      // Get the current student details from state or localStorage
+      const currentStudentDetails = studentDetails || JSON.parse(localStorage.getItem("student_details"));
+      
+      if (!currentStudentDetails?.student?._id) {
+        console.log("No student ID found for refresh");
+        return;
+      }
+
       const requestOptions = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          student_id: student_details.student._id,
+          student_id: currentStudentDetails.student._id,
         }),
       };
 
@@ -128,7 +136,7 @@ function App() {
         requestOptions
       );
       const data = await response.json();
-      console.log("student details", data.data);
+      console.log("🔄 Refreshed student details", data.data);
 
       setStudentDetails(data.data);
       localStorage.setItem("student_details", JSON.stringify(data.data));
@@ -141,9 +149,51 @@ function App() {
   useEffect(() => {
     window.refreshUserPoints = getStudentdetails;
     
+    // Listen for localStorage changes (when other components update student details)
+    const handleStorageChange = (e) => {
+      if (e.key === 'student_details' && e.newValue) {
+        try {
+          const newStudentDetails = JSON.parse(e.newValue);
+          console.log("📱 LocalStorage changed externally, updating student details", newStudentDetails);
+          setStudentDetails(newStudentDetails);
+        } catch (error) {
+          console.error("Error parsing updated student details:", error);
+        }
+      }
+    };
+
+    // Listen for storage events
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events for same-tab updates
+    const handleCustomStorageUpdate = (e) => {
+      if (e.detail?.key === 'student_details' && e.detail?.value) {
+        try {
+          const newStudentDetails = JSON.parse(e.detail.value);
+          console.log("🔄 Custom storage event, updating student details", newStudentDetails);
+          setStudentDetails(newStudentDetails);
+        } catch (error) {
+          console.error("Error parsing updated student details:", error);
+        }
+      }
+    };
+
+    // Listen for group status changes
+    const handleGroupStatusChange = (e) => {
+      console.log("🏆 App: Group status changed, refreshing student details", e.detail);
+      // Refresh student details to ensure context is up-to-date
+      getStudentdetails();
+    };
+
+    window.addEventListener('localStorageUpdate', handleCustomStorageUpdate);
+    window.addEventListener('groupStatusChanged', handleGroupStatusChange);
+    
     // Cleanup on unmount
     return () => {
       delete window.refreshUserPoints;
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localStorageUpdate', handleCustomStorageUpdate);
+      window.removeEventListener('groupStatusChanged', handleGroupStatusChange);
     };
   }, []);
   

@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import shell from "../../Images/nav/shell.png";
 import { createDateFromObject, getDateRange, getDayName, getMonthName, getMonthYear } from "../../utils";
 import { useGetQuestionForWeekMutation } from "../../redux/api/questionsApi";
+import { useGetDailyChallengeByDateQuery } from "../../redux/api/dailyChallengeApi";
 
 const data = [
   {
@@ -49,12 +50,17 @@ const QuestionOfTheDay = () => {
   const [dateRange, setDateRange] = useState(getDateRange(currentDate));
     console.log(dateRange,monthYear,dateRange[0],createDateFromObject(dateRange[0]))
   const [getQuestionForWeek,{isLoading,data}]= useGetQuestionForWeekMutation()
+  
+  // Get today's daily challenge
+  const today = new Date().toISOString().split('T')[0];
+  const { data: dailyChallengeData, isLoading: dailyChallengeLoading, error: dailyChallengeError } = useGetDailyChallengeByDateQuery(today);
 
   useEffect(()=>{
     getQuestionForWeek({start_date:createDateFromObject(dateRange[0]),end_date:createDateFromObject(dateRange[4])})
   },[])
 
   console.log(data,'data',isLoading)
+  console.log(dailyChallengeData,'dailyChallengeData',dailyChallengeLoading)
 
   const handleNextClick = () => {
     const nextDate = new Date(currentDate);
@@ -158,6 +164,117 @@ const QuestionOfTheDay = () => {
                   justifyContent: "space-between",
                 }}
               >
+                {/* Show Today's Daily Challenge First */}
+                {dailyChallengeData?.data && (
+                  <div
+                    style={{
+                      marginBottom: "3rem",
+                      boxSizing: "border-box",
+                      padding: "14px 12px 31px 12px",
+                      border: "3px solid #28a745",
+                      cursor: "pointer",
+                      maxWidth: "235px",
+                      backgroundColor: "#f8f9fa",
+                    }}
+                    onClick={() => navigate(`/question-of-the-day/${dailyChallengeData.data._id}`)}
+                  >
+                    <div
+                      style={{
+                        textAlign: "left",
+                      }}
+                      className="card-content"
+                    >
+                      <div
+                        style={{
+                          color: "#28a745",
+                          fontWeight: "bold",
+                          marginBottom: "10px",
+                          textAlign: "center",
+                        }}
+                      >
+                        🏆 TODAY'S CHALLENGE
+                      </div>
+                      <p
+                        style={{
+                          color: " rgba(0, 0, 0, 1)",
+                          marginBottom: "0px",
+                          fontSize: "16px",
+                          maxWidth: "303px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {dailyChallengeData.data.question}
+                      </p>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                        }}
+                        className="mt-3"
+                      >
+                        Status:{" "}
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            color: dailyChallengeData.data.is_active ? "#28a745" : "#dc3545",
+                          }}
+                        >
+                          {dailyChallengeData.data.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                        }}
+                      >
+                        Groups Answered:{" "}
+                        <span>
+                          <img
+                            src={shell}
+                            alt="shell"
+                            style={{ height: "25px" }}
+                          />{" "}
+                          <b>{dailyChallengeData.data.group_answers?.length || 0}</b>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Show loading state for daily challenge */}
+                {dailyChallengeLoading && (
+                  <div
+                    style={{
+                      marginBottom: "3rem",
+                      boxSizing: "border-box",
+                      padding: "14px 12px 31px 12px",
+                      border: "2px solid #6c757d",
+                      width: "235px",
+                      alignContent: "center",
+                      textAlign: "center",
+                    }}
+                  >
+                    Loading Today's Challenge...
+                  </div>
+                )}
+                
+                {/* Show error or no challenge message */}
+                {!dailyChallengeLoading && !dailyChallengeData?.data && (
+                  <div
+                    style={{
+                      marginBottom: "3rem",
+                      boxSizing: "border-box",
+                      padding: "14px 12px 31px 12px",
+                      border: "2px solid #dc3545",
+                      width: "235px",
+                      alignContent: "center",
+                      textAlign: "center",
+                    }}
+                  >
+                    No Challenge Today
+                  </div>
+                )}
+                
+                {/* Regular weekly questions */}
                 {data?.data?.questions?.length<1?
                 <h2 style={{display:'flex',margin:'auto',padding:'30px'}}>No Questions for this week</h2>
                 :data?.data?.questions?.map((value, index) => {

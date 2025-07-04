@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import './Question.css'
 import React, { useState, useEffect } from 'react'
 import { Container, Row, Col, Form, Modal } from 'react-bootstrap'
+import DailyChallenge from '../../../components/DailyChallenge'
 
 import shell from '../../../Images/shell.png'
 
@@ -283,6 +284,14 @@ function Question () {
             ></i>
           </h3>
         </div>
+        
+        {/* Daily Challenge Section */}
+        <Row className='m-3 mb-4'>
+          <Col md={6} lg={4} className='mx-auto'>
+            <DailyChallenge />
+          </Col>
+        </Row>
+        
         {dayQuestions.length >= 0 && (
           <>
             <Row className='m-3 question-row'>

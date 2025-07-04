@@ -50,22 +50,57 @@ const UserProfile = () => {
   // Helper: Refresh student details from backend and update state/localStorage
   const refreshStudentDetails = async () => {
     try {
+      console.log("🔄 UserProfile: Refreshing student details...");
       const res = await fetch(`${API_BASE}/student/get_student_details`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: studentDetails.student._id }),
       });
       const data = await res.json();
+      console.log("🔄 UserProfile: Received refreshed student details:", data);
+      
       if (data.status && data.data && data.data.student) {
         const newStudentDetails = { student: data.data.student };
         localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
         setStudentDetails(newStudentDetails);
         
+        // Don't clear groupDetails if we still have a group - prevent race condition
+        if (data.data.student.group && data.data.student.group._id) {
+          console.log("✅ UserProfile: Student still has group after refresh:", data.data.student.group);
+          // Preserve current groupDetails if they exist and match, or fetch new ones
+          if (!groupDetails || groupDetails._id !== data.data.student.group._id) {
+            console.log("🔄 UserProfile: Group changed, updating groupDetails");
+            setGroupDetails(data.data.student.group);
+          }
+        } else {
+          console.log("❌ UserProfile: Student no longer has group after refresh");
+          setGroupDetails(null);
+        }
+        
+        // Trigger custom event to notify other components
+        window.dispatchEvent(new CustomEvent('localStorageUpdate', {
+          detail: {
+            key: 'student_details',
+            value: JSON.stringify(newStudentDetails)
+          }
+        }));
+        
+        // Also trigger group update event for immediate UI refresh
+        window.dispatchEvent(new CustomEvent('groupStatusChanged', {
+          detail: {
+            hasGroup: !!(data.data.student.group && data.data.student.group._id),
+            groupData: data.data.student.group || null
+          }
+        }));
+        
         // Update avatar data
         updateAvatarData(newStudentDetails);
+        
+        console.log("🔄 Student details refreshed and broadcasted", newStudentDetails);
+        console.log("🏆 Group status:", data.data.student.group ? "Has group" : "No group");
       }
     } catch (err) {
-      // Optionally handle error
+      console.error("Error refreshing student details:", err);
     }
   };
 
@@ -85,18 +120,30 @@ const UserProfile = () => {
       const student_details_local = JSON.parse(localStorage.getItem("student_details"));
       if (student_details_local && student_details_local.student && student_details_local.student._id) {
         try {
+          console.log("🔄 UserProfile: Initial fetch of student details on mount");
           const res = await fetch(`${API_BASE}/student/get_student_details`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ student_id: student_details_local.student._id }),
           });
           const data = await res.json();
+          console.log("🔄 UserProfile: Initial student details response:", data);
+          
           if (data.status && data.data && data.data.student) {
             const newStudentDetails = { student: data.data.student };
             localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
             setStudentDetails(newStudentDetails);
+            
+            // Set group details immediately if available to prevent flickering
+            if (data.data.student.group && data.data.student.group._id) {
+              console.log("✅ UserProfile: Setting initial group details:", data.data.student.group);
+              setGroupDetails(data.data.student.group);
+              setGroupId(data.data.student.group._id);
+              localStorage.setItem("group_id", data.data.student.group._id);
+            }
           }
         } catch (err) {
+          console.error("Error in initial student fetch:", err);
           // Optionally handle error
         }
       }
@@ -107,25 +154,60 @@ const UserProfile = () => {
 
   useEffect(() => {
     // Always sync groupId from backend studentDetails
+    console.log("🔍 UserProfile: Syncing groupId from studentDetails", studentDetails);
     if (studentDetails && studentDetails.student && studentDetails.student.group && studentDetails.student.group._id) {
+      console.log("✅ UserProfile: Found group in studentDetails", studentDetails.student.group);
       if (groupId !== studentDetails.student.group._id) {
+        console.log("🔄 UserProfile: Updating groupId", studentDetails.student.group._id);
         setGroupId(studentDetails.student.group._id);
         localStorage.setItem("group_id", studentDetails.student.group._id);
+        // Also set group details immediately to prevent race condition
+        setGroupDetails(studentDetails.student.group);
       }
     } else {
-      setGroupId(null);
-      localStorage.removeItem("group_id");
+      console.log("❌ UserProfile: No group found in studentDetails");
+      console.log("📊 UserProfile: studentDetails structure:", {
+        exists: !!studentDetails,
+        hasStudent: !!(studentDetails?.student),
+        hasGroup: !!(studentDetails?.student?.group),
+        hasGroupId: !!(studentDetails?.student?.group?._id)
+      });
+      // Only clear if we're sure there's no group (not just incomplete data)
+      if (studentDetails && studentDetails.student && !studentDetails.student.group) {
+        console.log("🗑️ UserProfile: Confirmed no group, clearing state");
+        setGroupId(null);
+        setGroupDetails(null);
+        localStorage.removeItem("group_id");
+      }
     }
-  }, [studentDetails]);
+  }, [studentDetails, groupId]);
 
   useEffect(() => {
+    console.log("🔍 UserProfile: groupId changed:", groupId);
     if (groupId) {
+      console.log("✅ UserProfile: Fetching group details for groupId:", groupId);
       fetchGroupDetails(groupId);
     } else {
+      console.log("❌ UserProfile: No groupId, setting groupDetails to null");
       setGroupDetails(null);
     }
     // eslint-disable-next-line
   }, [groupId]);
+
+  // Debug: Monitor groupDetails changes
+  useEffect(() => {
+    console.log("🔍 UserProfile: groupDetails changed:", groupDetails);
+    console.log("🔍 UserProfile: groupDetails type:", typeof groupDetails);
+    if (groupDetails) {
+      console.log("✅ UserProfile: Group details available:", {
+        id: groupDetails._id,
+        name: groupDetails.name,
+        code: groupDetails.code
+      });
+    } else {
+      console.log("❌ UserProfile: Group details is null/undefined");
+    }
+  }, [groupDetails]);
 
   const fetchStudentDetails = async () => {
     setLoading(true);
@@ -154,6 +236,7 @@ const UserProfile = () => {
   };
 
   const fetchGroupDetails = async (id) => {
+    console.log("🔍 UserProfile: fetchGroupDetails called with id:", id);
     setLoading(true);
     setError("");
     try {
@@ -163,24 +246,30 @@ const UserProfile = () => {
         body: JSON.stringify({ group_id: id }),
       });
       const data = await res.json();
+      console.log("🔍 UserProfile: fetchGroupDetails response:", data);
+      
       if (data.status && data.data && data.data.group) {
         // Check if group object is accessible and valid
         if (typeof data.data.group !== "object" || data.data.group === null) {
+          console.log("❌ UserProfile: Invalid group data received:", data.data.group);
           setGroupDetails(null);
           console.error("Invalid group data received:", data.data.group);
           setError("Group details are not accessible.");
           setShowError(true);
         } else {
+          console.log("✅ UserProfile: Successfully fetched group details:", data.data.group);
           setGroupDetails(data.data.group);
           setError("");
           setShowError(false);
         }
       } else {
+        console.log("❌ UserProfile: Failed to fetch group details:", data.message);
         setGroupDetails(null);
         setError(data.message || "Failed to fetch group details.");
         setShowError(true);
       }
     } catch (err) {
+      console.error("❌ UserProfile: Error fetching group details:", err);
       setGroupDetails(null);
       setError("Failed to fetch group details.");
       setShowError(true);
@@ -216,6 +305,8 @@ const UserProfile = () => {
         if (data.data && data.data.group && data.data.group._id) {
           localStorage.setItem("group_id", data.data.group._id);
           setGroupId(data.data.group._id);
+          // Directly set group details from response to avoid race condition
+          setGroupDetails(data.data.group);
         }
         setGroupName("");
         setActiveTab("group");
@@ -256,6 +347,8 @@ const UserProfile = () => {
         if (data.data && data.data.group && data.data.group._id) {
           localStorage.setItem("group_id", data.data.group._id);
           setGroupId(data.data.group._id);
+          // Directly set group details from response to avoid race condition
+          setGroupDetails(data.data.group);
         }
         setJoinCode("");
         setActiveTab("group");

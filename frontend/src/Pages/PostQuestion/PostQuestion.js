@@ -251,6 +251,7 @@ const PostQuestion = () => {
           if (refreshResult) {
             console.log('✅ Student details refreshed after question posting');
             console.log('New points from refresh:', refreshResult.student?.current_points);
+            
             // Force a re-render by updating the questions list
             getMyQuestions({
               start_date: new Date("03-03-2023"),
