@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { useSelector } from 'react-redux';
 import { 
   useGetActiveChallengeQuery, 
-  useSubmitGroupAnswerMutation,
+  useSubmitIndividualAnswerMutation,
   useGetChallengeLeaderboardQuery 
 } from '../../redux/api/dailyChallengeApi';
 import { useMyContext } from '../../MyContextProvider';
@@ -22,7 +22,7 @@ const DailyChallenge = () => {
   
   // API hooks
   const { data: activeChallengeData, isLoading: challengeLoading, error: challengeError, refetch } = useGetActiveChallengeQuery();
-  const [submitGroupAnswer] = useSubmitGroupAnswerMutation();
+  const [submitIndividualAnswer] = useSubmitIndividualAnswerMutation();
   const { data: leaderboardData } = useGetChallengeLeaderboardQuery(
     activeChallengeData?.data?.challenge?._id,
     { skip: !activeChallengeData?.data?.challenge?._id }
@@ -30,15 +30,18 @@ const DailyChallenge = () => {
   
   const challenge = activeChallengeData?.data?.challenge;
   const groupId = student_details?.group?._id;
+  const studentId = userData?._id || student_details?.student?._id;
   
-  // Check if current user's group has already submitted
+  // Check if current user has already submitted (individual-based)
   const hasSubmitted = challenge?.group_submissions?.some(
-    submission => String(submission.group_id) === String(groupId)
+    submission => (submission.student_id && String(submission.student_id) === String(studentId)) ||
+                  (submission.submitted_by && String(submission.submitted_by) === String(studentId))
   );
   
-  // Get current user's group submission if exists
-  const groupSubmission = challenge?.group_submissions?.find(
-    submission => String(submission.group_id) === String(groupId)
+  // Get current user's submission if exists  
+  const userSubmission = challenge?.group_submissions?.find(
+    submission => (submission.student_id && String(submission.student_id) === String(studentId)) ||
+                  (submission.submitted_by && String(submission.submitted_by) === String(studentId))
   );
   
   // Calculate time remaining
@@ -71,17 +74,16 @@ const DailyChallenge = () => {
       return;
     }
     
-    if (!groupId) {
-      toast.error('You must be in a group to participate');
+    if (!studentId) {
+      toast.error('Please log in to participate');
       return;
     }
     
     setSubmitting(true);
     try {
-      const response = await submitGroupAnswer({
+      const response = await submitIndividualAnswer({
         challenge_id: challenge._id,
-        group_id: groupId,
-        student_id: userData._id,
+        student_id: studentId,
         answer: answer.trim()
       }).unwrap();
       
@@ -117,197 +119,213 @@ const DailyChallenge = () => {
   
   if (challengeLoading) {
     return (
-      <div className="daily-challenge-card">
-        <div className="text-center p-4">
-          <Spinner animation="border" role="status" />
-          <div className="mt-2">Loading today's challenge...</div>
-        </div>
+      <div className="text-center">
+        <Spinner animation="border" variant="primary" />
+        <p className="mt-2">Loading daily challenge...</p>
       </div>
     );
   }
   
   if (challengeError || !challenge) {
     return (
-      <div className="daily-challenge-card">
-        <div className="text-center p-4">
-          <h5>🌅 Daily Challenge</h5>
-          <p className="text-muted">No active challenge today</p>
-          <small>Check back at 10:00 AM for today's challenge!</small>
-        </div>
-      </div>
+      <Alert variant="info">
+        <h6>📚 No Daily Challenge Today</h6>
+        <p className="mb-0">Check back later for today's challenge!</p>
+      </Alert>
     );
   }
   
-  const isActive = challenge.status === 'active';
-  const isClosed = challenge.status === 'closed';
+  const isActive = challenge.status === 'active' && new Date() <= new Date(challenge.end_time);
   
   return (
     <>
-      <div className="daily-challenge-card" onClick={() => setShow(true)}>
-        <Card className="h-100 challenge-card">
-          <Card.Header className="challenge-header">
-            <div className="d-flex justify-content-between align-items-center">
-              <h6 className="mb-0">🏆 Daily Challenge</h6>
-              <Badge bg={isActive ? 'success' : isClosed ? 'secondary' : 'warning'}>
-                {challenge.status.toUpperCase()}
-              </Badge>
-            </div>
-          </Card.Header>
-          <Card.Body>
-            <div className="challenge-info">
-              <p className="challenge-question">{challenge.question}</p>
-              <div className="challenge-meta">
-                <div className="topic-points">
-                  <small><strong>Topic:</strong> {challenge.topic}</small>
-                  <div className="points-display">
-                    <img src={shell} alt="points" height="20" />
-                    <span>{challenge.points}</span>
-                  </div>
-                </div>
-                {isActive && (
-                  <div className="time-remaining">
-                    <small className="text-primary">{timeRemaining}</small>
-                  </div>
-                )}
-              </div>
-              {hasSubmitted && (
-                <Badge bg="info" className="mt-2">
-                  ✅ Your group has submitted
-                </Badge>
-              )}
-            </div>
-          </Card.Body>
-        </Card>
-      </div>
-      
+      {/* Challenge Card */}
+      <Card className="daily-challenge-card" onClick={() => setShow(true)} style={{ cursor: 'pointer' }}>
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <div className="d-flex align-items-center">
+            <h6 className="mb-0">🏆 Daily Challenge</h6>
+            <Badge bg={isActive ? 'success' : 'secondary'} className="ms-2">
+              {isActive ? 'ACTIVE' : 'CLOSED'}
+            </Badge>
+          </div>
+          <div className="d-flex align-items-center">
+            <img src={shell} alt="points" height="20" className="me-1" />
+            <span className="fw-bold">{challenge.points} pts</span>
+          </div>
+        </Card.Header>
+        <Card.Body>
+          <p className="question-text mb-3">{challenge.question}</p>
+          {challenge.description && (
+            <p className="text-muted mb-3">{challenge.description}</p>
+          )}
+          
+          <Row className="mb-3">
+            <Col md={6}>
+              <strong>Topic:</strong> {challenge.topic}
+            </Col>
+            <Col md={6}>
+              <strong>Submissions:</strong> {challenge.group_submissions?.length || 0}
+            </Col>
+          </Row>
+          
+          {isActive && (
+            <Alert variant="info" className="mb-0">
+              <strong>⏰ {timeRemaining}</strong>
+              <br />
+              <small>Submit your answer to earn up to {challenge.points} points!</small>
+            </Alert>
+          )}
+          
+          {hasSubmitted && (
+            <Alert variant="success" className="mb-0">
+              <strong>✅ Answer Submitted!</strong>
+              <br />
+              <small>Click to view your results</small>
+            </Alert>
+          )}
+        </Card.Body>
+      </Card>
+
       {/* Challenge Modal */}
       <Modal show={show} onHide={() => setShow(false)} size="lg" centered>
         <Modal.Header closeButton>
           <Modal.Title>
             🏆 Daily Challenge - {new Date(challenge.challenge_date).toLocaleDateString()}
+            <Badge bg={isActive ? 'success' : 'secondary'} className="ms-2">
+              {isActive ? 'ACTIVE' : 'CLOSED'}
+            </Badge>
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="challenge-details">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <Badge bg={isActive ? 'success' : isClosed ? 'secondary' : 'warning'}>
-                {challenge.status.toUpperCase()}
-              </Badge>
-              <div className="text-muted">
-                <small>
-                  {formatTime(challenge.start_time)} - {formatTime(challenge.end_time)}
-                </small>
-              </div>
-            </div>
-            
-            <div className="challenge-info-detailed">
-              <h5>{challenge.question}</h5>
-              {challenge.description && (
-                <p className="text-muted">{challenge.description}</p>
-              )}
-              
-              <Row className="mt-3">
-                <Col md={6}>
-                  <div className="info-item">
-                    <strong>Topic:</strong> {challenge.topic}
-                  </div>
-                </Col>
-                <Col md={6}>
-                  <div className="info-item">
-                    <strong>Points:</strong> 
-                    <img src={shell} alt="points" height="20" className="ms-1 me-1" />
-                    {challenge.points}
-                  </div>
-                </Col>
-              </Row>
-              
-              {isActive && (
-                <div className="mt-3">
-                  <Alert variant="info">
-                    <strong>⏰ {timeRemaining}</strong>
-                    <br />
-                    <small>Submit your group's answer quickly for bonus points!</small>
-                  </Alert>
-                </div>
-              )}
-            </div>
-            
-            {/* Group Submission Section */}
-            {hasSubmitted ? (
-              <Card className="mt-4">
-                <Card.Header>
-                  <h6 className="mb-0">✅ Your Group's Submission</h6>
-                </Card.Header>
-                <Card.Body>
-                  <p><strong>Answer:</strong> {groupSubmission.answer}</p>
-                  <Row>
-                    <Col md={4}>
-                      <small><strong>Score:</strong> {groupSubmission.llm_score}/10</small>
-                    </Col>
-                    <Col md={4}>
-                      <small><strong>Time:</strong> {groupSubmission.time_taken_minutes} min</small>
-                    </Col>
-                    <Col md={4}>
-                      <small><strong>Final Score:</strong> {groupSubmission.final_score}</small>
-                    </Col>
-                  </Row>
-                  {groupSubmission.llm_feedback && (
-                    <div className="mt-2">
-                      <Alert variant={groupSubmission.llm_feedback.is_correct ? 'success' : 'warning'}>
-                        <strong>AI Feedback:</strong> {groupSubmission.llm_feedback.explanation}
-                      </Alert>
-                    </div>
-                  )}
-                </Card.Body>
-              </Card>
-            ) : isActive && groupId ? (
-              <div className="mt-4">
-                <h6>Submit Your Group's Answer</h6>
-                <Form.Group>
-                  <Form.Control
-                    as="textarea"
-                    rows={4}
-                    placeholder="Enter your group's answer here..."
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    disabled={submitting}
-                  />
-                </Form.Group>
-                <Button 
-                  variant="primary" 
-                  className="mt-3"
-                  onClick={handleSubmit}
-                  disabled={submitting || !answer.trim()}
-                >
-                  {submitting ? 'Submitting...' : 'Submit Group Answer'}
-                </Button>
-              </div>
-            ) : !groupId ? (
-              <Alert variant="warning" className="mt-4">
-                You must be in a group to participate in daily challenges.
-              </Alert>
-            ) : (
-              <Alert variant="secondary" className="mt-4">
-                This challenge is no longer accepting submissions.
-              </Alert>
+          <div className="challenge-info">
+            <h5 className="question-text mb-3">{challenge.question}</h5>
+            {challenge.description && (
+              <p className="text-muted mb-3">{challenge.description}</p>
             )}
             
-            {/* Current Winner Display */}
-            {challenge.winner && (
-              <Card className="mt-4">
-                <Card.Header>
-                  <h6 className="mb-0">🏆 Current Leader</h6>
-                </Card.Header>
-                <Card.Body>
-                  <p><strong>Group:</strong> {challenge.winner.group_id}</p>
-                  <p><strong>Score:</strong> {challenge.winner.final_score}</p>
-                  <p><strong>Time:</strong> {challenge.winner.time_taken_minutes} minutes</p>
-                </Card.Body>
-              </Card>
+            <Row className="mb-3">
+              <Col md={4}>
+                <strong>Topic:</strong> {challenge.topic}
+              </Col>
+              <Col md={4}>
+                <strong>Points:</strong> {challenge.points}
+              </Col>
+              <Col md={4}>
+                <strong>Available:</strong> {formatTime(challenge.start_time)} - {formatTime(challenge.end_time)}
+              </Col>
+            </Row>
+            
+            {isActive && (
+              <Alert variant="info">
+                <strong>⏰ {timeRemaining}</strong>
+                <br />
+                <small>Answer correctly to earn up to {challenge.points} individual points!</small>
+              </Alert>
             )}
           </div>
+
+          {/* User's Previous Answer */}
+          {hasSubmitted && userSubmission ? (
+            <Card className="mt-4">
+              <Card.Header>
+                <h6 className="mb-0">✅ Your Answer</h6>
+              </Card.Header>
+              <Card.Body>
+                <p><strong>Answer:</strong> {userSubmission.answer}</p>
+                <Row>
+                  <Col md={4}>
+                    <small><strong>Score:</strong> {userSubmission.llm_score}/10</small>
+                  </Col>
+                  <Col md={4}>
+                    <small><strong>Time:</strong> {userSubmission.time_taken_minutes} min</small>
+                  </Col>
+                  <Col md={4}>
+                    <small><strong>Final Score:</strong> {userSubmission.final_score}</small>
+                  </Col>
+                </Row>
+                {userSubmission.llm_feedback && (
+                  <div className="mt-3">
+                    <Alert variant={userSubmission.llm_feedback.is_correct ? 'success' : 'warning'}>
+                      <strong>AI Feedback:</strong> {userSubmission.llm_feedback.explanation}
+                    </Alert>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          ) : isActive && !hasSubmitted ? (
+            <Card className="mt-4">
+              <Card.Header>
+                <h6 className="mb-0">📝 Submit Your Answer</h6>
+              </Card.Header>
+              <Card.Body>
+                <Form>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Your Answer:</Form.Label>
+                    <Form.Control
+                      type="text"
+                      placeholder="Enter your answer"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      disabled={submitting}
+                    />
+                    <Form.Text className="text-muted">
+                      Enter your best answer to this challenge
+                    </Form.Text>
+                  </Form.Group>
+                </Form>
+              </Card.Body>
+            </Card>
+          ) : !studentId ? (
+            <Alert variant="warning" className="mt-4">
+              Please log in to participate in daily challenges.
+            </Alert>
+          ) : (
+            <Alert variant="secondary" className="mt-4">
+              This challenge is no longer accepting submissions.
+            </Alert>
+          )}
+          
+          {/* Current Winner Display */}
+          {challenge.winner && (
+            <Card className="mt-4">
+              <Card.Header>
+                <h6 className="mb-0">🏆 Current Leader</h6>
+              </Card.Header>
+              <Card.Body>
+                <p><strong>Best Score:</strong> {challenge.winner.final_score}</p>
+                <p><strong>Time Taken:</strong> {challenge.winner.time_taken_minutes} minutes</p>
+              </Card.Body>
+            </Card>
+          )}
+          
+          {/* Leaderboard */}
+          {leaderboardData?.data && leaderboardData.data.length > 0 && (
+            <Card className="mt-4">
+              <Card.Header>
+                <h6 className="mb-0">📊 Top Submissions</h6>
+              </Card.Header>
+              <Card.Body>
+                {leaderboardData.data.slice(0, 5).map((submission, index) => (
+                  <div key={index} className="d-flex justify-content-between align-items-center mb-2">
+                    <span>#{index + 1}</span>
+                    <span>Score: {submission.final_score}</span>
+                    <span>{submission.time_taken_minutes}m</span>
+                  </div>
+                ))}
+              </Card.Body>
+            </Card>
+          )}
         </Modal.Body>
         <Modal.Footer>
+          {isActive && !hasSubmitted && (
+            <Button 
+              variant="primary" 
+              onClick={handleSubmit}
+              disabled={submitting || !answer.trim()}
+            >
+              {submitting ? 'Submitting...' : 'Submit Your Answer'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => setShow(false)}>
             Close
           </Button>

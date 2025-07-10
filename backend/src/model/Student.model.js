@@ -64,6 +64,14 @@ const StudentSchema = new Schema(
         type: Number,
         default: 0,
       },
+      daily_challenge_points: {
+        type: Number,
+        default: 0,
+      },
+      individual_daily_question_points: {
+        type: Number,
+        default: 0,
+      },
     },
     avatar: {
       seed: {

@@ -1,5 +1,6 @@
 // src/repository/daily_challenge.repository.js
 require("dotenv").config();
+const mongoose = require("mongoose");
 const OpenAI = require("openai");
 const { DailyChallenge } = require("../model/DailyChallenge.model");
 const { Group } = require("../model/Group.model");
@@ -190,10 +191,37 @@ const getActiveChallenge = async () => {
 
 // Submit group answer to daily challenge
 const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
-  console.log("=== SUBMITTING GROUP ANSWER ===");
+  console.log("=== SUBMITTING ANSWER ===");
   console.log("Challenge ID:", challengeId, "Group ID:", groupId, "Student ID:", studentId);
+  console.log("Student ID type:", typeof studentId, "Value:", studentId);
   
-  const challenge = await DailyChallenge.findById(challengeId);
+  // Validate inputs
+  if (!challengeId || !studentId || !answer) {
+    throw new Error("Challenge ID, Student ID, and answer are required");
+  }
+  
+  // Validate ObjectId format
+  if (!mongoose.Types.ObjectId.isValid(challengeId)) {
+    throw new Error("Invalid Challenge ID format");
+  }
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    throw new Error("Invalid Student ID format");
+  }
+  if (groupId && !mongoose.Types.ObjectId.isValid(groupId)) {
+    throw new Error("Invalid Group ID format");
+  }
+  
+  // Convert to ObjectId
+  const challengeObjectId = new mongoose.Types.ObjectId(challengeId);
+  const studentObjectId = new mongoose.Types.ObjectId(studentId);
+  const groupObjectId = groupId ? new mongoose.Types.ObjectId(groupId) : null;
+  
+  console.log("Converted IDs:");
+  console.log("Challenge ObjectId:", challengeObjectId);
+  console.log("Student ObjectId:", studentObjectId);
+  console.log("Group ObjectId:", groupObjectId);
+  
+  const challenge = await DailyChallenge.findById(challengeObjectId);
   if (!challenge) {
     throw new Error("Challenge not found");
   }
@@ -205,13 +233,14 @@ const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
     throw new Error("Challenge is not currently active");
   }
   
-  // Check if group already submitted
+  // Check if student already submitted (individual-based)
   const existingSubmission = challenge.group_submissions.find(
-    sub => sub.group_id.toString() === groupId.toString()
+    sub => (sub.student_id && sub.student_id.toString() === studentObjectId.toString()) ||
+           (sub.submitted_by && sub.submitted_by.toString() === studentObjectId.toString())
   );
   
   if (existingSubmission) {
-    throw new Error("Group has already submitted an answer for this challenge");
+    throw new Error("You have already submitted an answer for this challenge");
   }
   
   // Calculate time taken from challenge start
@@ -229,9 +258,10 @@ const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
   
   // Create submission
   const submission = {
-    group_id: groupId,
+    group_id: groupObjectId, // Use proper ObjectId (null is fine)
+    student_id: studentObjectId, // Track individual student  
     answer: answer,
-    submitted_by: studentId,
+    submitted_by: studentObjectId,
     submission_time: now,
     llm_score: llmResult.score,
     llm_feedback: {
@@ -243,6 +273,9 @@ const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
     final_score: finalScore
   };
   
+  console.log("=== SUBMISSION OBJECT ===");
+  console.log("Submission to be saved:", JSON.stringify(submission, null, 2));
+  
   // Add submission to challenge
   challenge.group_submissions.push(submission);
   
@@ -250,7 +283,8 @@ const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
   const currentWinner = challenge.winner;
   if (!currentWinner || finalScore > currentWinner.final_score) {
     challenge.winner = {
-      group_id: groupId,
+      student_id: studentObjectId, // Track individual winner
+      group_id: groupObjectId, // Keep for backward compatibility
       final_score: finalScore,
       submission_time: now,
       time_taken_minutes: timeTakenMinutes
@@ -279,7 +313,9 @@ const submitGroupAnswer = async (challengeId, groupId, studentId, answer) => {
 const getChallengeLeaderboard = async (challengeId) => {
   const challenge = await DailyChallenge.findById(challengeId)
     .populate('group_submissions.group_id', 'name team_members code')
+    .populate('group_submissions.student_id', 'name email')
     .populate('group_submissions.submitted_by', 'name email')
+    .populate('winner.student_id', 'name email')
     .populate('winner.group_id', 'name team_members');
   
   if (!challenge) {
@@ -613,6 +649,130 @@ const getDailyChallengeById = async (challengeId) => {
   }
 };
 
+// Auto-generate daily challenge with LLM
+const generateAndPostDailyChallenge = async () => {
+  console.log("🚀 Auto-generating today's daily challenge...");
+  
+  try {
+    // Check if challenge already exists for today
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
+    const existingChallenge = await DailyChallenge.findOne({
+      challenge_date: {
+        $gte: today,
+        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      }
+    });
+    
+    if (existingChallenge) {
+      console.log("⚠️ Today's daily challenge already exists");
+      return {
+        success: false,
+        action: "already_exists",
+        challenge: existingChallenge,
+        message: "Today's daily challenge already exists"
+      };
+    }
+    
+    // Generate question using LLM
+    const topics = ["Algebra", "Geometry", "Arithmetic", "Fractions", "Percentages", "Word Problems"];
+    const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+    
+    const prompt = `Generate a math question for a daily challenge with the following requirements:
+    - Topic: ${randomTopic}
+    - Difficulty: Medium (suitable for high school students)
+    - Should have a clear numerical answer
+    - Include a brief description if needed
+    - Make it engaging and educational
+    
+    Return ONLY a JSON object with this format:
+    {
+      "question": "The main question text",
+      "description": "Brief description or context (optional)",
+      "topic": "${randomTopic}",
+      "correct_answer": "numerical answer",
+      "explanation": "Step-by-step solution"
+    }`;
+    
+    console.log("🤖 Calling LLM to generate daily challenge question...");
+    
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are a math teacher creating daily challenge questions. Always respond with valid JSON only."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+    
+    const responseText = completion.choices[0].message.content.trim();
+    console.log("🤖 LLM Response:", responseText);
+    
+    // Parse LLM response
+    let questionData;
+    try {
+      questionData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("❌ Failed to parse LLM response:", parseError);
+      throw new Error("Failed to parse LLM response");
+    }
+    
+    // Set challenge times (12:01 AM to 11:59 PM today)
+    const challengeDate = new Date(today);
+    
+    const startTime = new Date(challengeDate);
+    startTime.setHours(0, 1, 0, 0); // 12:01 AM
+    
+    const endTime = new Date(challengeDate);
+    endTime.setHours(23, 59, 0, 0); // 11:59 PM
+    
+    // Create the challenge
+    const challengeData = {
+      question: questionData.question,
+      description: questionData.description || "",
+      topic: questionData.topic,
+      correct_answer: questionData.correct_answer.toString(),
+      posted_by: null, // System generated
+      challenge_date: challengeDate,
+      start_time: startTime,
+      end_time: endTime,
+      status: now >= startTime && now <= endTime ? "active" : "scheduled",
+      group_submissions: [],
+      winner: null,
+      llm_explanation: questionData.explanation || ""
+    };
+    
+    console.log("💾 Creating daily challenge:", challengeData);
+    const newChallenge = await DailyChallenge.create(challengeData);
+    
+    console.log("✅ Daily challenge generated and posted successfully!");
+    return {
+      success: true,
+      action: "created",
+      challenge: newChallenge,
+      message: "Daily challenge generated and posted successfully"
+    };
+    
+  } catch (error) {
+    console.error("❌ Error generating daily challenge:", error);
+    return {
+      success: false,
+      action: "error",
+      challenge: null,
+      message: error.message
+    };
+  }
+};
+
 module.exports = {
   postDailyChallenge,
   getTodaysChallenge,
@@ -628,5 +788,6 @@ module.exports = {
   calculateFinalScore,
   activateTodaysChallenge,
   closeTodaysChallenge,
-  postTodaysChallengeNow
+  postTodaysChallengeNow,
+  generateAndPostDailyChallenge
 };

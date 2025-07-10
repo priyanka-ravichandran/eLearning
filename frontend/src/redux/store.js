@@ -6,6 +6,7 @@ import { questionsApi } from "./api/questionsApi";
 import { studentsApi } from "./api/studentsApi";
 import { avatarApi } from "./api/avatarApi";
 import { dailyChallengeApi } from "./api/dailyChallengeApi";
+import { individualDailyQuestionApi } from "./api/individualDailyQuestionApi";
 import userSlice from "./userSlice";
 import { persistStore, persistReducer } from "redux-persist";
 import storage from "redux-persist/lib/storage";
@@ -25,6 +26,7 @@ const store = configureStore({
     [questionsApi.reducerPath]: questionsApi.reducer,
     [avatarApi.reducerPath]: avatarApi.reducer,
     [dailyChallengeApi.reducerPath]: dailyChallengeApi.reducer,
+    [individualDailyQuestionApi.reducerPath]: individualDailyQuestionApi.reducer,
     user: persistedReducer,
   },
   middleware: (getDefaultMiddleware) =>
@@ -36,7 +38,8 @@ const store = configureStore({
       studentsApi.middleware,
       questionsApi.middleware,
       avatarApi.middleware,
-      dailyChallengeApi.middleware
+      dailyChallengeApi.middleware,
+      individualDailyQuestionApi.middleware
       // logger   ←- add here only once if you need it
     ),
 });

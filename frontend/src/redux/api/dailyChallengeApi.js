@@ -5,7 +5,7 @@ const base_url = process.env.REACT_APP_BASE_URL;
 export const dailyChallengeApi = createApi({
   reducerPath: "dailyChallengeApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: `${base_url}/api/v1/daily-challenge`,
+    baseUrl: `${base_url}/daily-challenge`,
     prepareHeaders: (headers) => {
       headers.set("Content-Type", "application/json");
       return headers;
@@ -35,8 +35,8 @@ export const dailyChallengeApi = createApi({
       providesTags: ["DailyChallenge"],
     }),
 
-    // Submit group answer to daily challenge
-    submitGroupAnswer: builder.mutation({
+    // Submit individual answer to daily challenge
+    submitIndividualAnswer: builder.mutation({
       query: (submissionData) => ({
         url: "/submit",
         method: "POST",
@@ -93,7 +93,7 @@ export const {
   useGetActiveChallengeQuery,
   useGetDailyChallengeByDateQuery,
   useGetDailyChallengeByIdQuery,
-  useSubmitGroupAnswerMutation,
+  useSubmitIndividualAnswerMutation,
   useGetChallengeLeaderboardQuery,
   useGetChallengeHistoryQuery,
   useGetGroupSubmissionQuery,

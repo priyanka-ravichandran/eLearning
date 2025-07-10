@@ -32,6 +32,7 @@ function Header() {
     console.log('🔄 Header - Student details updated:', {
       points: studentDetails?.student?.current_points,
       totalPoints: studentDetails?.student?.total_points_earned,
+      pointsBreakdown: studentDetails?.student?.points_breakdown,
       timestamp: new Date().toLocaleTimeString()
     });
   }, [studentDetails]);
@@ -64,7 +65,7 @@ function Header() {
           <span className="d-flex align-items-center">
             <img className="options shell" src={shell} alt="Points:" />
             <span className="points">
-              {student_details?.student?.current_points}
+              {student_details?.student?.current_points || 0}
             </span>
           </span>
         </Navbar.Text>

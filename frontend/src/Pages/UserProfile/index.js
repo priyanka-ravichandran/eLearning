@@ -65,12 +65,24 @@ const UserProfile = () => {
         setStudentDetails(newStudentDetails);
         
         // Don't clear groupDetails if we still have a group - prevent race condition
-        if (data.data.student.group && data.data.student.group._id) {
+        if (data.data.student.group && (data.data.student.group._id || data.data.student.group.id)) {
+          const studentGroupId = data.data.student.group._id || data.data.student.group.id;
           console.log("✅ UserProfile: Student still has group after refresh:", data.data.student.group);
-          // Preserve current groupDetails if they exist and match, or fetch new ones
-          if (!groupDetails || groupDetails._id !== data.data.student.group._id) {
-            console.log("🔄 UserProfile: Group changed, updating groupDetails");
-            setGroupDetails(data.data.student.group);
+          console.log("✅ UserProfile: Student group ID:", studentGroupId);
+          
+          // Always fetch full group details instead of using the partial group object from student endpoint
+          // This ensures we have leader info, village level, etc.
+          if (!groupDetails || (groupDetails._id || groupDetails.id) !== studentGroupId) {
+            console.log("🔄 UserProfile: Group changed or missing details, fetching full group details");
+            // Store the group ID in localStorage if not already there
+            if (!localStorage.getItem("group_id")) {
+              localStorage.setItem("group_id", studentGroupId);
+              setGroupId(studentGroupId);
+            }
+            // Fetch complete group details instead of using partial data
+            fetchGroupDetails(studentGroupId);
+          } else {
+            console.log("✅ UserProfile: Group details already match, no need to refetch");
           }
         } else {
           console.log("❌ UserProfile: Student no longer has group after refresh");
@@ -161,9 +173,9 @@ const UserProfile = () => {
         console.log("🔄 UserProfile: Updating groupId", studentDetails.student.group._id);
         setGroupId(studentDetails.student.group._id);
         localStorage.setItem("group_id", studentDetails.student.group._id);
-        // Also set group details immediately to prevent race condition
-        setGroupDetails(studentDetails.student.group);
       }
+      // Always set group details from studentDetails to ensure they're current
+      setGroupDetails(studentDetails.student.group);
     } else {
       console.log("❌ UserProfile: No group found in studentDetails");
       console.log("📊 UserProfile: studentDetails structure:", {
@@ -172,23 +184,23 @@ const UserProfile = () => {
         hasGroup: !!(studentDetails?.student?.group),
         hasGroupId: !!(studentDetails?.student?.group?._id)
       });
-      // Only clear if we're sure there's no group (not just incomplete data)
-      if (studentDetails && studentDetails.student && !studentDetails.student.group) {
+      // Only clear if we're sure there's no group AND studentDetails is fully loaded
+      if (studentDetails && studentDetails.student && studentDetails.student.hasOwnProperty('group') && !studentDetails.student.group) {
         console.log("🗑️ UserProfile: Confirmed no group, clearing state");
         setGroupId(null);
         setGroupDetails(null);
         localStorage.removeItem("group_id");
       }
     }
-  }, [studentDetails, groupId]);
+  }, [studentDetails]);
 
   useEffect(() => {
     console.log("🔍 UserProfile: groupId changed:", groupId);
-    if (groupId) {
+    if (groupId && !groupDetails) {
       console.log("✅ UserProfile: Fetching group details for groupId:", groupId);
       fetchGroupDetails(groupId);
-    } else {
-      console.log("❌ UserProfile: No groupId, setting groupDetails to null");
+    } else if (!groupId && groupDetails) {
+      console.log("❌ UserProfile: No groupId, clearing groupDetails");
       setGroupDetails(null);
     }
     // eslint-disable-next-line
@@ -208,6 +220,45 @@ const UserProfile = () => {
       console.log("❌ UserProfile: Group details is null/undefined");
     }
   }, [groupDetails]);
+
+  // Listen for group status changes from other components
+  useEffect(() => {
+    const handleGroupStatusChange = (event) => {
+      console.log("🔄 UserProfile: Group status changed event received:", event.detail);
+      if (event.detail.hasGroup && event.detail.groupData) {
+        console.log("✅ UserProfile: Setting group details from event:", event.detail.groupData);
+        setGroupDetails(event.detail.groupData);
+        setGroupId(event.detail.groupData._id);
+        localStorage.setItem("group_id", event.detail.groupData._id);
+      } else if (!event.detail.hasGroup) {
+        console.log("❌ UserProfile: Clearing group details from event");
+        setGroupDetails(null);
+        setGroupId(null);
+        localStorage.removeItem("group_id");
+      }
+      // Refresh student details to ensure consistency
+      refreshStudentDetails();
+    };
+
+    const handleLocalStorageUpdate = (event) => {
+      console.log("🔄 UserProfile: LocalStorage update event received:", event.detail);
+      if (event.detail.key === 'student_details') {
+        const newStudentDetails = JSON.parse(event.detail.value);
+        setStudentDetails(newStudentDetails);
+        // Don't clear groupDetails unnecessarily - let the studentDetails useEffect handle it
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('groupStatusChanged', handleGroupStatusChange);
+    window.addEventListener('localStorageUpdate', handleLocalStorageUpdate);
+
+    // Cleanup event listeners
+    return () => {
+      window.removeEventListener('groupStatusChanged', handleGroupStatusChange);
+      window.removeEventListener('localStorageUpdate', handleLocalStorageUpdate);
+    };
+  }, []);
 
   const fetchStudentDetails = async () => {
     setLoading(true);
@@ -252,10 +303,10 @@ const UserProfile = () => {
         // Check if group object is accessible and valid
         if (typeof data.data.group !== "object" || data.data.group === null) {
           console.log("❌ UserProfile: Invalid group data received:", data.data.group);
-          setGroupDetails(null);
           console.error("Invalid group data received:", data.data.group);
           setError("Group details are not accessible.");
           setShowError(true);
+          // Don't set groupDetails to null here - keep existing data if valid
         } else {
           console.log("✅ UserProfile: Successfully fetched group details:", data.data.group);
           setGroupDetails(data.data.group);
@@ -264,15 +315,18 @@ const UserProfile = () => {
         }
       } else {
         console.log("❌ UserProfile: Failed to fetch group details:", data.message);
-        setGroupDetails(null);
         setError(data.message || "Failed to fetch group details.");
         setShowError(true);
+        // Only set to null if we're sure the group doesn't exist
+        if (data.message && (data.message.includes("not found") || data.message.includes("does not exist"))) {
+          setGroupDetails(null);
+        }
       }
     } catch (err) {
       console.error("❌ UserProfile: Error fetching group details:", err);
-      setGroupDetails(null);
       setError("Failed to fetch group details.");
       setShowError(true);
+      // Don't clear groupDetails on network errors - keep existing data
     }
     setLoading(false);
   };
@@ -302,11 +356,13 @@ const UserProfile = () => {
         }
         setSuccess((data.message || "Group created successfully!") + passcodeMsg);
         setShowSuccess(true);
-        if (data.data && data.data.group && data.data.group._id) {
-          localStorage.setItem("group_id", data.data.group._id);
-          setGroupId(data.data.group._id);
-          // Directly set group details from response to avoid race condition
-          setGroupDetails(data.data.group);
+        if (data.data && data.data.group && (data.data.group._id || data.data.group.id)) {
+          const newGroupId = data.data.group._id || data.data.group.id;
+          localStorage.setItem("group_id", newGroupId);
+          setGroupId(newGroupId);
+          // Fetch complete group details instead of using partial data from create response
+          console.log("🔄 UserProfile: Group created, fetching complete group details");
+          fetchGroupDetails(newGroupId);
         }
         setGroupName("");
         setActiveTab("group");
@@ -533,19 +589,65 @@ const UserProfile = () => {
                         <div className="fw-semibold">{studentDetails?.student?.total_points_earned}</div>
                       </Col>
                     </Row>
+                    
+                    {/* Points Breakdown */}
+                    {studentDetails?.student?.points_breakdown && (
+                      <Row className="mb-3">
+                        <Col xs={12}>
+                          <div className="text-secondary small mb-2">Points Breakdown</div>
+                          <div className="points-breakdown">
+                            {studentDetails.student.points_breakdown.llm_score_points > 0 && (
+                              <div className="d-flex justify-content-between align-items-center py-1">
+                                <span className="small">Q&A Evaluation</span>
+                                <span className="fw-semibold">{studentDetails.student.points_breakdown.llm_score_points}</span>
+                              </div>
+                            )}
+                            {studentDetails.student.points_breakdown.question_posting_points > 0 && (
+                              <div className="d-flex justify-content-between align-items-center py-1">
+                                <span className="small">Question Posting</span>
+                                <span className="fw-semibold">{studentDetails.student.points_breakdown.question_posting_points}</span>
+                              </div>
+                            )}
+                            {studentDetails.student.points_breakdown.reaction_points > 0 && (
+                              <div className="d-flex justify-content-between align-items-center py-1">
+                                <span className="small">Reactions</span>
+                                <span className="fw-semibold">{studentDetails.student.points_breakdown.reaction_points}</span>
+                              </div>
+                            )}
+                            {studentDetails.student.points_breakdown.daily_challenge_points > 0 && (
+                              <div className="d-flex justify-content-between align-items-center py-1">
+                                <span className="small">Daily Challenges</span>
+                                <span className="fw-semibold">{studentDetails.student.points_breakdown.daily_challenge_points}</span>
+                              </div>
+                            )}
+                            {studentDetails.student.points_breakdown.individual_daily_question_points > 0 && (
+                              <div className="d-flex justify-content-between align-items-center py-1">
+                                <span className="small">🧮 Daily Math Questions</span>
+                                <span className="fw-semibold">{studentDetails.student.points_breakdown.individual_daily_question_points}</span>
+                              </div>
+                            )}
+                          </div>
+                        </Col>
+                      </Row>
+                    )}
                   </Col>
                 </Row>
               </Tab.Pane>
 
               {/* Group Tab - Remains exactly the same */}
               <Tab.Pane eventKey="group">
+                {/* Debug: Log current state before rendering */}
+                {console.log("🎨 UserProfile: Rendering group tab - groupDetails:", groupDetails, "loading:", loading)}
+                {console.log("🎨 UserProfile: groupDetails._id:", groupDetails?._id, "groupDetails.id:", groupDetails?.id)}
+                {console.log("🎨 UserProfile: typeof groupDetails:", typeof groupDetails)}
+                {console.log("🎨 UserProfile: groupDetails keys:", groupDetails ? Object.keys(groupDetails) : "null")}
                 {loading ? (
                   <div className="text-center py-5">
                     <Spinner animation="border" variant="success" />
                   </div>
                 ) : (
                   <>
-                    {groupDetails ? (
+                    {groupDetails && (groupDetails._id || groupDetails.id) ? (
                       <Card className="mt-2 shadow-sm border-0">
                         <Card.Body>
                           <div className="d-flex align-items-center mb-3 justify-content-between">
@@ -563,6 +665,11 @@ const UserProfile = () => {
                                 </h5>
                                 <div className="text-muted small">
                                   Village Level: {groupDetails.village_level}
+                                  {groupDetails.leader && (
+                                    <span className="ms-2">
+                                      • Leader: <span className="fw-semibold">{groupDetails.leader.name || 'Unknown'}</span>
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -614,6 +721,21 @@ const UserProfile = () => {
                               <div className="fw-semibold">{groupDetails.village_level}</div>
                             </Col>
                           </Row>
+                          <Row className="mb-2">
+                            <Col xs={12}>
+                              <div className="text-secondary small">Team Leader</div>
+                              <div className="fw-semibold">
+                                {groupDetails.leader ? (
+                                  <div className="d-flex align-items-center">
+                                    <span>{groupDetails.leader.name || 'Unknown'}</span>
+                                    <span className="text-muted ms-2">({groupDetails.leader.email || 'No email'})</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted">No leader assigned</span>
+                                )}
+                              </div>
+                            </Col>
+                          </Row>
                           <div className="mb-2">
                             <div className="text-secondary small mb-1">Team Members</div>
                             {groupDetails.team_members && groupDetails.team_members.length > 0 ? (
@@ -624,16 +746,34 @@ const UserProfile = () => {
                                       <th className="text-center" style={{ width: '40px' }}>#</th>
                                       <th>Name</th>
                                       <th>Email</th>
+                                      <th className="text-center" style={{ width: '80px' }}>Role</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {groupDetails.team_members.map((member, idx) => (
-                                      <tr key={member._id}>
-                                        <td className="text-center">{idx + 1}</td>
-                                        <td>{member.name}</td>
-                                        <td>{member.email}</td>
-                                      </tr>
-                                    ))}
+                                    {groupDetails.team_members.map((member, idx) => {
+                                      const isLeader = groupDetails.leader && groupDetails.leader._id === member._id;
+                                      return (
+                                        <tr key={member._id}>
+                                          <td className="text-center">{idx + 1}</td>
+                                          <td>
+                                            {member.name}
+                                            {isLeader && (
+                                              <span className="badge bg-primary ms-2" style={{ fontSize: '0.7rem' }}>
+                                                Leader
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td>{member.email}</td>
+                                          <td className="text-center">
+                                            {isLeader ? (
+                                              <span className="text-primary fw-semibold">👑 Leader</span>
+                                            ) : (
+                                              <span className="text-muted">Member</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

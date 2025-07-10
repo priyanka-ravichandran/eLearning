@@ -12,8 +12,8 @@ router.get("/today", dailyChallengeController.getTodaysChallenge);
 // Get active challenge
 router.get("/active", dailyChallengeController.getActiveChallenge);
 
-// Submit group answer to daily challenge
-router.post("/submit", dailyChallengeController.submitGroupAnswer);
+// Submit individual answer to daily challenge
+router.post("/submit", dailyChallengeController.submitIndividualAnswer);
 
 // Get challenge by date
 router.get("/date/:date", dailyChallengeController.getDailyChallengeByDate);

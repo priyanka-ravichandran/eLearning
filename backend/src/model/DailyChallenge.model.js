@@ -19,12 +19,13 @@ const dailyChallengeSchema = new mongoose.Schema({
   },
   points: {
     type: Number,
-    default: 50, // Higher points for daily challenges
+    default: 10, // Changed from 50 to 10 points
   },
   posted_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Student",
-    required: true, // Teacher who posted the challenge
+    required: false, // Not required for system-generated challenges
+    default: null,
   },
   challenge_date: {
     type: Date,
@@ -48,7 +49,12 @@ const dailyChallengeSchema = new mongoose.Schema({
     group_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
-      required: true,
+      required: false, // Made optional for individual submissions
+    },
+    student_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Student",
+      required: true, // Track individual student
     },
     answer: {
       type: String,
@@ -84,6 +90,10 @@ const dailyChallengeSchema = new mongoose.Schema({
     }
   }],
   winner: {
+    student_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Student",
+    },
     group_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
@@ -127,7 +137,9 @@ dailyChallengeSchema.statics.getTodaysChallenge = function() {
     }
   }).populate('posted_by', 'name email')
     .populate('group_submissions.group_id', 'name team_members')
+    .populate('group_submissions.student_id', 'name email')
     .populate('group_submissions.submitted_by', 'name email')
+    .populate('winner.student_id', 'name email')
     .populate('winner.group_id', 'name team_members');
 };
 
@@ -140,6 +152,7 @@ dailyChallengeSchema.statics.getActiveChallenge = function() {
     end_time: { $gte: now }
   }).populate('posted_by', 'name email')
     .populate('group_submissions.group_id', 'name team_members')
+    .populate('group_submissions.student_id', 'name email')
     .populate('group_submissions.submitted_by', 'name email');
 };
 

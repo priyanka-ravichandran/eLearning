@@ -69,7 +69,7 @@ function Question() {
       };
 
       const response = await fetch(
-        base_url + "/question/get_question_details",
+        base_url + "/student_question/get_question_details",
         requestOptions
       );
       const data = await response.json();

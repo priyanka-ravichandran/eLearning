@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./LandingPage.css";
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Modal, Badge, ProgressBar } from "react-bootstrap";
+import { Container, Row, Col, Modal, ProgressBar } from "react-bootstrap";
 import village1 from "../../Images/village1.png";
 import village2 from "../../Images/village2.png";
 import village3 from "../../Images/village3.png";
@@ -30,9 +30,8 @@ function LandingPage() {
   const [showChatbot, setShowChatbot] = useState(true);
   const [coord, setCoord] = useState({ x: 0, y: 0 });
   const [show, setShow] = useState(false);
-  const [showEmotionPopup, setShowEmotionPopup] = useState(true);
-  const [emotion, setEmotion] = useState("");
   const [milestoneData, setMilestoneData] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0); // Force re-render key
   const [getVillageMilestones] = useGetVillageMilestonesMutation();
   const [updateVillageLevel] = useUpdateVillageLevelMutation();
   
@@ -40,9 +39,9 @@ function LandingPage() {
     const newCoords = { x: e.screenX, y: e.screenY };
     setCoord(newCoords);
   };
+  
   // Handle Emotion Selection
   const handleEmotionClick = (selectedEmotion) => {
-    setEmotion(selectedEmotion);
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] Emotion selected: ${selectedEmotion}`);
   };
@@ -69,12 +68,54 @@ function LandingPage() {
     }
   }, []);
 
+  // Listen for group status changes from other components (like UserProfile)
+  useEffect(() => {
+    const handleGroupStatusChange = (event) => {
+      console.log("🔄 LandingPage: Group status changed event received:", event.detail);
+      // Force refresh by updating key and fetching new student details
+      setRefreshKey(prev => prev + 1);
+      setTimeout(() => {
+        getStudentdetails();
+      }, 500); // Small delay to ensure backend has processed the group creation
+    };
+
+    const handleLocalStorageUpdate = (event) => {
+      console.log("🔄 LandingPage: LocalStorage update event received:", event.detail);
+      if (event.detail.key === 'student_details') {
+        // Parse the new student details and update state
+        const newStudentDetails = JSON.parse(event.detail.value);
+        setStudentDetails(newStudentDetails);
+        setRefreshKey(prev => prev + 1); // Force re-render
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('groupStatusChanged', handleGroupStatusChange);
+    window.addEventListener('localStorageUpdate', handleLocalStorageUpdate);
+
+    // Cleanup event listeners
+    return () => {
+      window.removeEventListener('groupStatusChanged', handleGroupStatusChange);
+      window.removeEventListener('localStorageUpdate', handleLocalStorageUpdate);
+    };
+  }, []);
+
   // Fetch milestone data when group is available
   useEffect(() => {
+    console.log("🔍 LandingPage: studentDetails changed:", {
+      hasStudentDetails: !!studentDetails,
+      hasGroup: !!studentDetails?.group,
+      groupId: studentDetails?.group?._id,
+      groupName: studentDetails?.group?.name
+    });
+    
     if (studentDetails?.group?._id) {
+      console.log("✅ LandingPage: Group detected, fetching milestone data");
       fetchMilestoneData();
+    } else {
+      console.log("❌ LandingPage: No group detected");
     }
-  }, [studentDetails?.group?._id]);
+  }, [studentDetails]);
 
   const fetchMilestoneData = async () => {
     try {
@@ -163,26 +204,41 @@ function LandingPage() {
 
   const getStudentdetails = async () => {
     try {
+      const current_student_details = JSON.parse(localStorage.getItem("student_details"));
+      if (!current_student_details?.student?._id) {
+        console.error("No student ID found in localStorage");
+        return;
+      }
+
       const requestOptions = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: student_details.student._id }),
+        body: JSON.stringify({ student_id: current_student_details.student._id }),
       };
 
       const response = await fetch(base_url + "/student/get_student_details", requestOptions);
       const data = await response.json();
-      console.log("Student details", data.data);
+      console.log("🔄 LandingPage: Student details fetched:", data.data);
 
-      setStudentDetails(data.data);
+      if (data.status && data.data) {
+        // Update the studentDetails state
+        setStudentDetails(data.data);
+        
+        // Also update localStorage with the latest data
+        localStorage.setItem("student_details", JSON.stringify(data.data));
+        
+        console.log("✅ LandingPage: Student details updated successfully");
+        console.log("🏆 LandingPage: Group status:", data.data.group ? "Has group" : "No group");
+      }
     } catch (error) {
-      console.error("Error fetching data:", error.message);
+      console.error("❌ LandingPage: Error fetching student details:", error.message);
     }
   };
   
 
   return (
     <>
-      <Container onMouseMove={handleMouseMove}>
+      <Container onMouseMove={handleMouseMove} key={refreshKey}>
         <div className="home-container">
           <div className="info" style={{ marginTop: 20, marginLeft: -418 }}>
             Mouse coordinates: {coord.x} {coord.y}
@@ -219,7 +275,7 @@ function LandingPage() {
               </Col>
             </Row>
 
-            {!studentDetails?.group && (
+            {(!studentDetails || !studentDetails.group) && (
               <Row className="row px-4 py-3">
                 <h3 className="mt-5">Join a group with your classmates to start your Village building Journey!!!</h3>
               </Row>
@@ -228,7 +284,13 @@ function LandingPage() {
             {studentDetails?.group && (
               <Row className="landing-container ps-4">
                 <Col xs={7} className="left-side">
-                  <img className="current-village" src={village_levels[studentDetails?.group?.village_level]} alt="eLearning Logo" />
+                  <img 
+                    className="current-village" 
+                    src={village_levels[studentDetails?.group?.village_level]} 
+                    alt="Village Level" 
+                    style={{ width: '100%', maxWidth: '400px', borderRadius: '10px' }}
+                  />
+                  
                   <p className="pt-3">
                     My Current Village level - <span className="bold">Level {studentDetails?.group?.village_level}</span>
                   </p>
@@ -283,7 +345,11 @@ function LandingPage() {
                       </button>
                     </div>
                     <div className="mt-4">
-                      <img className="next-village" src={village_levels[studentDetails?.group?.village_level + 1]} alt="Next Village Level" />
+                      <img 
+                        className="next-village" 
+                        src={village_levels[studentDetails?.group?.village_level + 1]} 
+                        alt="Next Village Level" 
+                      />
                       <p className="pt-1">Your village will look like this - Level {studentDetails?.group?.village_level + 1}</p>
                     </div>
                   </Col>

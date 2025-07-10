@@ -68,7 +68,7 @@ function Question () {
       }
 
       const response = await fetch(
-        base_url + '/question/get_questions_for_week',
+        base_url + '/student_question/get_questions_for_week',
         requestOptions
       )
       const data = await response.json()

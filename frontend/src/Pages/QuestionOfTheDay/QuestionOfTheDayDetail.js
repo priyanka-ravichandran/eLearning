@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import "../HelpFriend/HelpFriend.css";
 import PageTitle from "../../components/PageTitle";
 import shell from "../../Images/nav/shell.png";
-import { useGetDailyChallengeByIdQuery, useSubmitGroupAnswerMutation } from "../../redux/api/dailyChallengeApi";
+import { useGetDailyChallengeByIdQuery, useSubmitIndividualAnswerMutation } from "../../redux/api/dailyChallengeApi";
 import { useSelector } from "react-redux";
 import { useMyContext } from "../../MyContextProvider";
 
@@ -33,34 +33,34 @@ const QuestionOfTheDayDetail = () => {
   
   // API calls
   const { data: challengeData, isLoading, error } = useGetDailyChallengeByIdQuery(id);
-  const [submitGroupAnswer, { isLoading: submitting }] = useSubmitGroupAnswerMutation();
+  const [submitIndividualAnswer, { isLoading: submitting }] = useSubmitIndividualAnswerMutation();
   
-  // Check if current group has already submitted
-  const hasGroupSubmitted = challengeData?.data?.group_answers?.some(
-    answer => answer.group_id === student_details?.group?._id
+  // Check if current student has already submitted
+  const hasStudentSubmitted = challengeData?.data?.group_submissions?.some(
+    submission => submission.student_id === student_details?._id
   );
   
-  // Get current group's answer if submitted
-  const groupAnswer = challengeData?.data?.group_answers?.find(
-    answer => answer.group_id === student_details?.group?._id
+  // Get current student's answer if submitted
+  const studentAnswer = challengeData?.data?.group_submissions?.find(
+    submission => submission.student_id === student_details?._id
   );
   
   useEffect(() => {
-    if (hasGroupSubmitted) {
+    if (hasStudentSubmitted) {
       setIsAnsSubmitted(true);
     }
-  }, [hasGroupSubmitted]);
+  }, [hasStudentSubmitted]);
   
   const handleSubmitAnswer = async () => {
-    if (!answer.trim() || !student_details?.group?._id) {
-      alert("Please enter an answer and ensure you're part of a group");
+    if (!answer.trim() || !student_details?._id) {
+      alert("Please enter an answer and ensure you're logged in");
       return;
     }
     
     try {
-      await submitGroupAnswer({
-        challengeId: id,
-        groupId: student_details.group._id,
+      await submitIndividualAnswer({
+        challenge_id: id,
+        student_id: student_details._id,
         answer: answer.trim()
       }).unwrap();
       setIsAnsSubmitted(true);
@@ -227,17 +227,17 @@ const QuestionOfTheDayDetail = () => {
           This challenge is no longer active.
         </div>
       )}
-      {isAnsSubmitted && groupAnswer && (
+      {isAnsSubmitted && studentAnswer && (
         <div className="answer-container">
           <div className="ans-sec">
-            <h1>Your Group's Answer</h1>
-            <span>{groupAnswer.answer}</span>
+            <h1>Your Answer</h1>
+            <span>{studentAnswer.answer}</span>
           </div>
-          {groupAnswer.llm_score && (
+          {studentAnswer.llm_score && (
             <div className="ans-sec">
               <h1>AI Score</h1>
               <span style={{ color: "#28a745", fontSize: "24px", fontWeight: "bold" }}>
-                {groupAnswer.llm_score}/10
+                {studentAnswer.llm_score}/10
               </span>
             </div>
           )}

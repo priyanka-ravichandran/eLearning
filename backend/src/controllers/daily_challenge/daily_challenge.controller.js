@@ -74,9 +74,9 @@ const getTodaysChallenge = async (req, res) => {
     if (!challenge) {
       return response(
         res,
-        StatusCodes.NOT_FOUND,
-        false,
-        {},
+        StatusCodes.OK,
+        true,
+        { challenge: null },
         "No challenge found for today"
       );
     }
@@ -108,9 +108,9 @@ const getActiveChallenge = async (req, res) => {
     if (!challenge) {
       return response(
         res,
-        StatusCodes.NOT_FOUND,
-        false,
-        {},
+        StatusCodes.OK,
+        true,
+        { challenge: null },
         "No active challenge found"
       );
     }
@@ -134,51 +134,50 @@ const getActiveChallenge = async (req, res) => {
   }
 };
 
-// Submit group answer to daily challenge
-const submitGroupAnswer = async (req, res) => {
-  const { challenge_id, group_id, student_id, answer } = req.body;
-  const CHALLENGE_POINTS = 100; // Base points for participating in daily challenge
+// Submit answer to daily challenge (individual-based)
+const submitIndividualAnswer = async (req, res) => {
+  const { challenge_id, student_id, answer } = req.body;
   
-  console.log("SUBMIT GROUP ANSWER - Request body:", req.body);
+  console.log("SUBMIT INDIVIDUAL ANSWER - Request body:", req.body);
   
   try {
-    // Validate required fields
-    if (!challenge_id || !group_id || !student_id || !answer) {
+    // Validate required fields - only challenge_id, student_id, and answer are required
+    if (!challenge_id || !student_id || !answer) {
       return response(
         res,
         StatusCodes.BAD_REQUEST,
         false,
         {},
-        "Missing required fields: challenge_id, group_id, student_id, answer"
+        "Missing required fields: challenge_id, student_id, answer"
       );
     }
     
-    // Verify student is in the group
-    const group = await Group.findById(group_id);
-    if (!group || !group.team_members.includes(student_id)) {
+    // Verify student exists
+    const student = await Student.findById(student_id);
+    if (!student) {
       return response(
         res,
-        StatusCodes.FORBIDDEN,
+        StatusCodes.NOT_FOUND,
         false,
         {},
-        "Student is not a member of this group"
+        "Student not found"
       );
     }
     
     const result = await dailyChallengeRepo.submitGroupAnswer(
       challenge_id,
-      group_id,
+      null, // No group_id for individual submissions
       student_id,
       answer
     );
     
-    console.log("✅ Group answer submitted successfully");
+    console.log("✅ Individual answer submitted successfully");
     
     // Award points to the submitting student
     let achievementInfo = null;
     try {
-      // Calculate points based on LLM score
-      const pointsEarned = Math.round(result.llm_result.score * 10); // LLM score * 10 for daily challenge
+      // Calculate points based on LLM score (direct score, not multiplied)
+      const pointsEarned = Math.round(result.llm_result.score); // Direct LLM score for daily challenge
       
       if (pointsEarned > 0) {
         const pointsResult = await studentRepo.update_student_points(
@@ -212,21 +211,6 @@ const submitGroupAnswer = async (req, res) => {
       console.error("Error awarding points for daily challenge:", pointsError);
     }
     
-    // Award bonus points to group if they're the current winner
-    if (result.is_current_winner) {
-      try {
-        await groupRepo.update_group_points(
-          student_id,
-          50, // Bonus group points for leading
-          "credit",
-          "Leading in Daily Challenge"
-        );
-        console.log("✅ Bonus group points awarded for leading");
-      } catch (groupPointsError) {
-        console.error("Error awarding group points:", groupPointsError);
-      }
-    }
-    
     return response(
       res,
       StatusCodes.OK,
@@ -236,15 +220,14 @@ const submitGroupAnswer = async (req, res) => {
         llm_feedback: result.llm_result,
         final_score: result.final_score,
         time_taken_minutes: result.time_taken_minutes,
-        is_current_winner: result.is_current_winner,
         achievement: achievementInfo
       },
       achievementInfo ? 
-        `Answer submitted! You earned ${achievementInfo.points} points. ${result.is_current_winner ? 'Your group is currently leading!' : ''}` :
-        `Answer submitted! ${result.is_current_winner ? 'Your group is currently leading!' : ''}`
+        `Answer submitted! You earned ${achievementInfo.points} points.` :
+        "Answer submitted successfully!"
     );
   } catch (error) {
-    console.error("Error submitting group answer:", error);
+    console.error("Error submitting individual answer:", error);
     return response(
       res,
       StatusCodes.INTERNAL_SERVER_ERROR,
@@ -478,7 +461,7 @@ module.exports = {
   getActiveChallenge,
   getDailyChallengeByDate,
   getDailyChallengeById,
-  submitGroupAnswer,
+  submitIndividualAnswer,
   getChallengeLeaderboard,
   getChallengeHistory,
   updateChallengeStatus,
