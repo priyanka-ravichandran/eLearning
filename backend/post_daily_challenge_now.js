@@ -8,40 +8,38 @@ const dailyChallengeRepo = require("./src/repository/daily_challenge.repository"
 
 async function postTodaysChallenge() {
   try {
-    console.log("🚀 Starting daily challenge posting...");
+    console.log("🚀 Starting daily challenge generation test...");
     
-    const result = await dailyChallengeRepo.postTodaysChallengeNow();
+    const result = await dailyChallengeRepo.generateAndPostDailyChallenge();
     
-    if (result.success) {
-      console.log("✅ SUCCESS!");
-      console.log(`📋 Action: ${result.action}`);
-      console.log(`❓ Question: ${result.challenge.question}`);
-      console.log(`📚 Topic: ${result.challenge.topic}`);
-      console.log(`✅ Correct Answer: ${result.challenge.correct_answer}`);
-      console.log(`🎯 Points: ${result.challenge.points}`);
-      console.log(`📅 Date: ${result.challenge.challenge_date.toDateString()}`);
-      console.log(`🟢 Status: ${result.challenge.status}`);
-      console.log(`⏰ Start Time: ${result.challenge.start_time.toLocaleString()}`);
-      console.log(`🔚 End Time: ${result.challenge.end_time.toLocaleString()}`);
-      console.log(`🆔 Challenge ID: ${result.challenge._id}`);
-      
-      // Test getting today's challenge
-      console.log("\n🔍 Testing API: Getting today's challenge...");
-      const todaysChallenge = await dailyChallengeRepo.getTodaysChallenge();
-      if (todaysChallenge) {
-        console.log("✅ API test successful - Today's challenge retrieved");
-        console.log(`📝 Retrieved question: ${todaysChallenge.question}`);
-      } else {
-        console.log("❌ API test failed - Could not retrieve today's challenge");
-      }
-      
+    console.log("✅ SUCCESS!");
+    console.log("📋 Action:", result.action);
+    
+    if (result.challenge) {
+      console.log("❓ Question:", result.challenge.question);
+      console.log("� Description:", result.challenge.description);
+      console.log("📚 Topic:", result.challenge.topic);
+      console.log("✅ Correct Answer:", result.challenge.correct_answer);
+      console.log("�️ Date:", result.challenge.challenge_date.toDateString());
+      console.log("🟢 Status:", result.challenge.status);
+      console.log("⏰ Start Time:", result.challenge.start_time.toLocaleString());
+      console.log("🔚 End Time:", result.challenge.end_time.toLocaleString());
+      console.log("🆔 Challenge ID:", result.challenge._id);
+    }
+    
+    // Test the API endpoint
+    console.log("\n🔍 Testing API: Getting active daily challenge...");
+    const activeChallenge = await dailyChallengeRepo.getActiveChallenge();
+    
+    if (activeChallenge) {
+      console.log("✅ API test successful - Active challenge retrieved");
+      console.log("📝 Retrieved question:", activeChallenge.question);
     } else {
-      console.log("❌ FAILED!");
-      console.log(`💬 Message: ${result.message}`);
+      console.log("⚠️ No active challenge found via API");
     }
     
   } catch (error) {
-    console.error("💥 ERROR:", error.message);
+    console.error("❌ ERROR:", error.message);
     console.error(error.stack);
   } finally {
     console.log("\n🏁 Script completed. Exiting...");

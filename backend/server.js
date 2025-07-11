@@ -9,6 +9,9 @@ const path = require("path");
 const cron = require("node-cron");
 const dailyChallengeRepo = require("./src/repository/daily_challenge.repository");
 const individualQuestionRepo = require("./src/repository/individual_daily_question.repository");
+const http = require('http');
+const { setupQuizSocket, addTestQuizEndpoint } = require('./quizSocket');
+const { scheduleWeeklyQuiz } = require('./quizScheduler');
 
 const app = express();
 
@@ -43,6 +46,9 @@ app.use("/individual-question", individualDailyQuestionRoutes);
 // Serve React build static files
 app.use(express.static(path.join(__dirname, "../frontend/build")));
 
+// Register quiz endpoints BEFORE the catch-all route
+addTestQuizEndpoint(app);
+
 // Serve React app for any unknown route (except API and uploads)
 app.get("*", (req, res) => {
   // If the request is for an API or uploads, skip
@@ -61,8 +67,10 @@ app.get("*", (req, res) => {
 });
 
 var port = process.env.PORT || 3000;
-
-app.listen(port, () => {
+const server = http.createServer(app);
+setupQuizSocket(server);
+scheduleWeeklyQuiz();
+server.listen(port, () => {
   console.log("Server is Running on " + port);
 });
 

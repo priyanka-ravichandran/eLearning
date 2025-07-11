@@ -164,39 +164,41 @@ const UserProfile = () => {
     // eslint-disable-next-line
   }, []);
 
+  // Always sync groupId from backend studentDetails
   useEffect(() => {
-    // Always sync groupId from backend studentDetails
     console.log("🔍 UserProfile: Syncing groupId from studentDetails", studentDetails);
-    if (studentDetails && studentDetails.student && studentDetails.student.group && studentDetails.student.group._id) {
-      console.log("✅ UserProfile: Found group in studentDetails", studentDetails.student.group);
-      if (groupId !== studentDetails.student.group._id) {
-        console.log("🔄 UserProfile: Updating groupId", studentDetails.student.group._id);
-        setGroupId(studentDetails.student.group._id);
-        localStorage.setItem("group_id", studentDetails.student.group._id);
+    let latestGroupId = null;
+    if (studentDetails?.student?.group) {
+      if (typeof studentDetails.student.group === 'string') {
+        latestGroupId = studentDetails.student.group;
+      } else if (studentDetails.student.group._id || studentDetails.student.group.id) {
+        latestGroupId = studentDetails.student.group._id || studentDetails.student.group.id;
       }
-      // Always set group details from studentDetails to ensure they're current
-      setGroupDetails(studentDetails.student.group);
+    }
+    if (latestGroupId) {
+      if (groupId !== latestGroupId) {
+        console.log("🔄 UserProfile: Updating groupId from studentDetails", latestGroupId);
+        setGroupId(latestGroupId);
+        setGroupDetails(null); // Force fetch of full group details
+        localStorage.setItem("group_id", latestGroupId);
+      }
+      // Do NOT set groupDetails here; let the [groupId] effect fetch the full details
     } else {
       console.log("❌ UserProfile: No group found in studentDetails");
-      console.log("📊 UserProfile: studentDetails structure:", {
-        exists: !!studentDetails,
-        hasStudent: !!(studentDetails?.student),
-        hasGroup: !!(studentDetails?.student?.group),
-        hasGroupId: !!(studentDetails?.student?.group?._id)
-      });
-      // Only clear if we're sure there's no group AND studentDetails is fully loaded
       if (studentDetails && studentDetails.student && studentDetails.student.hasOwnProperty('group') && !studentDetails.student.group) {
-        console.log("🗑️ UserProfile: Confirmed no group, clearing state");
         setGroupId(null);
         setGroupDetails(null);
         localStorage.removeItem("group_id");
       }
     }
+    // Debug log
+    console.log("[DEBUG] groupId:", groupId, "groupDetails:", groupDetails);
   }, [studentDetails]);
 
   useEffect(() => {
     console.log("🔍 UserProfile: groupId changed:", groupId);
-    if (groupId && !groupDetails) {
+    // Always fetch group details if groupId is a string (not an object)
+    if (groupId && (!groupDetails || typeof groupDetails !== 'object')) {
       console.log("✅ UserProfile: Fetching group details for groupId:", groupId);
       fetchGroupDetails(groupId);
     } else if (!groupId && groupDetails) {
@@ -236,8 +238,7 @@ const UserProfile = () => {
         setGroupId(null);
         localStorage.removeItem("group_id");
       }
-      // Refresh student details to ensure consistency
-      refreshStudentDetails();
+      // Removed refreshStudentDetails() here to prevent backend loop
     };
 
     const handleLocalStorageUpdate = (event) => {
@@ -356,17 +357,17 @@ const UserProfile = () => {
         }
         setSuccess((data.message || "Group created successfully!") + passcodeMsg);
         setShowSuccess(true);
-        if (data.data && data.data.group && (data.data.group._id || data.data.group.id)) {
-          const newGroupId = data.data.group._id || data.data.group.id;
-          localStorage.setItem("group_id", newGroupId);
-          setGroupId(newGroupId);
-          // Fetch complete group details instead of using partial data from create response
-          console.log("🔄 UserProfile: Group created, fetching complete group details");
-          fetchGroupDetails(newGroupId);
-        }
         setGroupName("");
         setActiveTab("group");
-        await refreshStudentDetails(); // <-- Refresh student details
+        // Always refresh student details and then fetch group details
+        await refreshStudentDetails();
+        // After refresh, get latest groupId from localStorage or state
+        const updatedStudent = JSON.parse(localStorage.getItem("student_details"));
+        const newGroupId = updatedStudent?.student?.group?._id || updatedStudent?.student?.group?.id;
+        if (newGroupId) {
+          setGroupId(newGroupId);
+          fetchGroupDetails(newGroupId);
+        }
       } else {
         setError(data.message || "Failed to create group.");
         setShowError(true);
@@ -400,15 +401,17 @@ const UserProfile = () => {
         }
         setSuccess("Joined group successfully!" + passcodeMsg);
         setShowSuccess(true);
-        if (data.data && data.data.group && data.data.group._id) {
-          localStorage.setItem("group_id", data.data.group._id);
-          setGroupId(data.data.group._id);
-          // Directly set group details from response to avoid race condition
-          setGroupDetails(data.data.group);
-        }
         setJoinCode("");
         setActiveTab("group");
-        await refreshStudentDetails(); // <-- Refresh student details
+        // Always refresh student details and then fetch group details
+        await refreshStudentDetails();
+        // After refresh, get latest groupId from localStorage or state
+        const updatedStudent = JSON.parse(localStorage.getItem("student_details"));
+        const newGroupId = updatedStudent?.student?.group?._id || updatedStudent?.student?.group?.id;
+        if (newGroupId) {
+          setGroupId(newGroupId);
+          fetchGroupDetails(newGroupId);
+        }
       } else {
         setError(data.message || "Failed to join group.");
         setShowError(true);
@@ -513,6 +516,7 @@ const UserProfile = () => {
       </span>
     ));
 
+  // --- UI rendering ---
   return (
     <>
       <div className="container py-5" style={{ maxWidth: 800 }}>
@@ -647,221 +651,233 @@ const UserProfile = () => {
                   </div>
                 ) : (
                   <>
-                    {groupDetails && (groupDetails._id || groupDetails.id) ? (
-                      <Card className="mt-2 shadow-sm border-0">
-                        <Card.Body>
-                          <div className="d-flex align-items-center mb-3 justify-content-between">
-                            <div className="d-flex align-items-center">
-                              <Avatar
-                                name={groupDetails.name ? groupDetails.name : `Group ${groupDetails.group_no}`}
-                                size="64"
-                                round
-                                color="#b2dfdb"
-                                fgColor="#267c5d"
-                              />
-                              <div className="ms-3">
-                                <h5 className="mb-1 fw-bold">
-                                  {groupDetails.name ? groupDetails.name : `Group #${groupDetails.group_no}`}
-                                </h5>
-                                <div className="text-muted small">
-                                  Village Level: {groupDetails.village_level}
-                                  {groupDetails.leader && (
-                                    <span className="ms-2">
-                                      • Leader: <span className="fw-semibold">{groupDetails.leader.name || 'Unknown'}</span>
-                                    </span>
-                                  )}
+                    {/* Use groupDetails if available, else fallback to studentDetails.student.group */}
+                    {(() => {
+                      const groupObj = groupDetails && (groupDetails._id || groupDetails.id)
+                        ? groupDetails
+                        : (studentDetails?.student?.group && (studentDetails.student.group._id || studentDetails.student.group.id))
+                          ? studentDetails.student.group
+                          : null;
+                      if (groupObj && (groupObj._id || groupObj.id)) {
+                        return (
+                          <Card className="mt-2 shadow-sm border-0">
+                            <Card.Body>
+                              <div className="d-flex align-items-center mb-3 justify-content-between">
+                                <div className="d-flex align-items-center">
+                                  <Avatar
+                                    name={groupObj.name ? groupObj.name : `Group ${groupObj.group_no}`}
+                                    size="64"
+                                    round
+                                    color="#b2dfdb"
+                                    fgColor="#267c5d"
+                                  />
+                                  <div className="ms-3">
+                                    <h5 className="mb-1 fw-bold">
+                                      {groupObj.name ? groupObj.name : `Group #${groupObj.group_no}`}
+                                    </h5>
+                                    <div className="text-muted small">
+                                      Village Level: {groupObj.village_level ?? '-'}
+                                      {groupObj.leader && (
+                                        <span className="ms-2">
+                                          • Leader: <span className="fw-semibold">{groupObj.leader.name || 'Unknown'}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-end">
+                                  <div className="text-secondary small mt-1 d-flex align-items-center">
+                                    <strong>Passcode:</strong> <span className="fw-semibold ms-1">{groupObj.code}</span>
+                                    <button
+                                      className="btn btn-link p-0 ms-2"
+                                      title="Copy passcode"
+                                      style={{ fontSize: '1.2rem' }}
+                                      onClick={handleSharePasscode}
+                                    >
+                                      {/* Inline SVG clipboard icon */}
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M10 1.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 1 .5.5V14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 0 .5-.5v-1A.5.5 0 0 1 7.5 1h1A.5.5 0 0 1 10 1.5zm-1 0a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 1-.5.5h-1A1.5 1.5 0 0 0 3 3.5V14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3.5A1.5 1.5 0 0 0 12.5 2h-1a.5.5 0 0 1-.5-.5v-1z"/>
+                                      </svg>
+                                    </button>
+                                    <button
+                                      className="btn btn-link p-0 ms-2"
+                                      title="Invite via Email"
+                                      style={{ fontSize: '1.2rem' }}
+                                      onClick={handleSendEmail}
+                                    >
+                                      {/* Inline SVG email icon */}
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.383V5.383zm-.034 7.434-5.482-3.29-5.482 3.29A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.183zM1 11.383l4.708-2.825L1 5.383v6z"/>
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="text-end">
-                              <div className="text-secondary small mt-1 d-flex align-items-center">
-                                <strong>Passcode:</strong> <span className="fw-semibold ms-1">{groupDetails.code}</span>
-                                <button
-                                  className="btn btn-link p-0 ms-2"
-                                  title="Copy passcode"
-                                  style={{ fontSize: '1.2rem' }}
-                                  onClick={handleSharePasscode}
-                                >
-                                  {/* Inline SVG clipboard icon */}
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M10 1.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 1 .5.5V14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 0 .5-.5v-1A.5.5 0 0 1 7.5 1h1A.5.5 0 0 1 10 1.5zm-1 0a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 1-.5.5h-1A1.5 1.5 0 0 0 3 3.5V14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3.5A1.5 1.5 0 0 0 12.5 2h-1a.5.5 0 0 1-.5-.5v-1z"/>
-                                  </svg>
-                                </button>
-                                <button
-                                  className="btn btn-link p-0 ms-2"
-                                  title="Invite via Email"
-                                  style={{ fontSize: '1.2rem' }}
-                                  onClick={handleSendEmail}
-                                >
-                                  {/* Inline SVG email icon */}
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.383V5.383zm-.034 7.434-5.482-3.29-5.482 3.29A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.183zM1 11.383l4.708-2.825L1 5.383v6z"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          <Row className="mb-2">
-                            <Col xs={6}>
-                              <div className="text-secondary small">Group Rank</div>
-                              <div className="fw-semibold">{groupDetails.group_rank ?? "-"}</div>
-                            </Col>
-                            <Col xs={6}>
-                              <div className="text-secondary small">Current Points</div>
-                              <div className="fw-semibold">{groupDetails.current_points}</div>
-                            </Col>
-                          </Row>
-                          <Row className="mb-2">
-                            <Col xs={6}>
-                              <div className="text-secondary small">Total Points Earned</div>
-                              <div className="fw-semibold">{groupDetails.total_points_earned}</div>
-                            </Col>
-                            <Col xs={6}>
-                              <div className="text-secondary small">Village Level</div>
-                              <div className="fw-semibold">{groupDetails.village_level}</div>
-                            </Col>
-                          </Row>
-                          <Row className="mb-2">
-                            <Col xs={12}>
-                              <div className="text-secondary small">Team Leader</div>
-                              <div className="fw-semibold">
-                                {groupDetails.leader ? (
-                                  <div className="d-flex align-items-center">
-                                    <span>{groupDetails.leader.name || 'Unknown'}</span>
-                                    <span className="text-muted ms-2">({groupDetails.leader.email || 'No email'})</span>
+                              <Row className="mb-2">
+                                <Col xs={6}>
+                                  <div className="text-secondary small">Group Rank</div>
+                                  <div className="fw-semibold">{groupObj.group_rank ?? "-"}</div>
+                                </Col>
+                                <Col xs={6}>
+                                  <div className="text-secondary small">Current Points</div>
+                                  <div className="fw-semibold">{groupObj.current_points ?? '-'}</div>
+                                </Col>
+                              </Row>
+                              <Row className="mb-2">
+                                <Col xs={6}>
+                                  <div className="text-secondary small">Total Points Earned</div>
+                                  <div className="fw-semibold">{groupObj.total_points_earned ?? '-'}</div>
+                                </Col>
+                                <Col xs={6}>
+                                  <div className="text-secondary small">Village Level</div>
+                                  <div className="fw-semibold">{groupObj.village_level ?? '-'}</div>
+                                </Col>
+                              </Row>
+                              <Row className="mb-2">
+                                <Col xs={12}>
+                                  <div className="text-secondary small">Team Leader</div>
+                                  <div className="fw-semibold">
+                                    {groupObj.leader ? (
+                                      <div className="d-flex align-items-center">
+                                        <span>{groupObj.leader.name || 'Unknown'}</span>
+                                        <span className="text-muted ms-2">({groupObj.leader.email || 'No email'})</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted">No leader assigned</span>
+                                    )}
+                                  </div>
+                                </Col>
+                              </Row>
+                              <div className="mb-2">
+                                <div className="text-secondary small mb-1">Team Members</div>
+                                {groupObj.team_members && groupObj.team_members.length > 0 ? (
+                                  <div className="table-responsive">
+                                    <table className="table table-sm table-bordered align-middle mb-0">
+                                      <thead className="table-light">
+                                        <tr>
+                                          <th className="text-center" style={{ width: '40px' }}>#</th>
+                                          <th>Name</th>
+                                          <th>Email</th>
+                                          <th className="text-center" style={{ width: '80px' }}>Role</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {groupObj.team_members.map((member, idx) => {
+                                          const isLeader = groupObj.leader && groupObj.leader._id === member._id;
+                                          return (
+                                            <tr key={member._id}>
+                                              <td className="text-center">{idx + 1}</td>
+                                              <td>
+                                                {member.name}
+                                                {isLeader && (
+                                                  <span className="badge bg-primary ms-2" style={{ fontSize: '0.7rem' }}>
+                                                    Leader
+                                                  </span>
+                                                )}
+                                              </td>
+                                              <td>{member.email ?? '-'}</td>
+                                              <td className="text-center">
+                                                {isLeader ? (
+                                                  <span className="text-primary fw-semibold">👑 Leader</span>
+                                                ) : (
+                                                  <span className="text-muted">Member</span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
                                   </div>
                                 ) : (
-                                  <span className="text-muted">No leader assigned</span>
+                                  <span>No members</span>
                                 )}
                               </div>
+                              <Button
+                                variant="danger"
+                                className="mt-3"
+                                onClick={handleExitGroup}
+                                disabled={groupActionLoading}
+                              >
+                                {groupActionLoading ? (
+                                  <Spinner size="sm" animation="border" />
+                                ) : (
+                                  "Exit Group"
+                                )}
+                              </Button>
+                            </Card.Body>
+                          </Card>
+                        );
+                      } else {
+                        // If user is not in a group: show create/join
+                        return (
+                          <Row>
+                            <Col md={6} className="mb-4">
+                              <Card className="shadow-sm border-0">
+                                <Card.Body>
+                                  <h5 className="fw-bold mb-3">Create Group</h5>
+                                  <Form onSubmit={handleCreateGroup}>
+                                    <Form.Group className="mb-3">
+                                      <Form.Label>Group Name</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        placeholder="Enter group name"
+                                        value={groupName}
+                                        onChange={(e) => setGroupName(e.target.value)}
+                                        required
+                                      />
+                                    </Form.Group>
+                                    <Button
+                                      variant="success"
+                                      type="submit"
+                                      className="w-100"
+                                      disabled={groupActionLoading}
+                                    >
+                                      {groupActionLoading ? (
+                                        <Spinner size="sm" animation="border" />
+                                      ) : (
+                                        "Create Group"
+                                      )}
+                                    </Button>
+                                  </Form>
+                                </Card.Body>
+                              </Card>
+                            </Col>
+                            <Col md={6} className="mb-4">
+                              <Card className="shadow-sm border-0">
+                                <Card.Body>
+                                  <h5 className="fw-bold mb-3">Join Group</h5>
+                                  <Form onSubmit={handleJoinGroup}>
+                                    <Form.Group className="mb-3">
+                                      <Form.Label>Group Code</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        placeholder="Enter group code"
+                                        value={joinCode}
+                                        onChange={(e) => setJoinCode(e.target.value)}
+                                        required
+                                      />
+                                    </Form.Group>
+                                    <Button
+                                      variant="primary"
+                                      type="submit"
+                                      className="w-100"
+                                      disabled={groupActionLoading}
+                                    >
+                                      {groupActionLoading ? (
+                                        <Spinner size="sm" animation="border" />
+                                      ) : (
+                                        "Join Group"
+                                      )}
+                                    </Button>
+                                  </Form>
+                                </Card.Body>
+                              </Card>
                             </Col>
                           </Row>
-                          <div className="mb-2">
-                            <div className="text-secondary small mb-1">Team Members</div>
-                            {groupDetails.team_members && groupDetails.team_members.length > 0 ? (
-                              <div className="table-responsive">
-                                <table className="table table-sm table-bordered align-middle mb-0">
-                                  <thead className="table-light">
-                                    <tr>
-                                      <th className="text-center" style={{ width: '40px' }}>#</th>
-                                      <th>Name</th>
-                                      <th>Email</th>
-                                      <th className="text-center" style={{ width: '80px' }}>Role</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {groupDetails.team_members.map((member, idx) => {
-                                      const isLeader = groupDetails.leader && groupDetails.leader._id === member._id;
-                                      return (
-                                        <tr key={member._id}>
-                                          <td className="text-center">{idx + 1}</td>
-                                          <td>
-                                            {member.name}
-                                            {isLeader && (
-                                              <span className="badge bg-primary ms-2" style={{ fontSize: '0.7rem' }}>
-                                                Leader
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td>{member.email}</td>
-                                          <td className="text-center">
-                                            {isLeader ? (
-                                              <span className="text-primary fw-semibold">👑 Leader</span>
-                                            ) : (
-                                              <span className="text-muted">Member</span>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <span>No members</span>
-                            )}
-                          </div>
-                          <Button
-                            variant="danger"
-                            className="mt-3"
-                            onClick={handleExitGroup}
-                            disabled={groupActionLoading}
-                          >
-                            {groupActionLoading ? (
-                              <Spinner size="sm" animation="border" />
-                            ) : (
-                              "Exit Group"
-                            )}
-                          </Button>
-                        </Card.Body>
-                      </Card>
-                    ) : (
-                      // If user is not in a group: show create/join
-                      <Row>
-                        <Col md={6} className="mb-4">
-                          <Card className="shadow-sm border-0">
-                            <Card.Body>
-                              <h5 className="fw-bold mb-3">Create Group</h5>
-                              <Form onSubmit={handleCreateGroup}>
-                                <Form.Group className="mb-3">
-                                  <Form.Label>Group Name</Form.Label>
-                                  <Form.Control
-                                    type="text"
-                                    placeholder="Enter group name"
-                                    value={groupName}
-                                    onChange={(e) => setGroupName(e.target.value)}
-                                    required
-                                  />
-                                </Form.Group>
-                                <Button
-                                  variant="success"
-                                  type="submit"
-                                  className="w-100"
-                                  disabled={groupActionLoading}
-                                >
-                                  {groupActionLoading ? (
-                                    <Spinner size="sm" animation="border" />
-                                  ) : (
-                                    "Create Group"
-                                  )}
-                                </Button>
-                              </Form>
-                            </Card.Body>
-                          </Card>
-                        </Col>
-                        <Col md={6} className="mb-4">
-                          <Card className="shadow-sm border-0">
-                            <Card.Body>
-                              <h5 className="fw-bold mb-3">Join Group</h5>
-                              <Form onSubmit={handleJoinGroup}>
-                                <Form.Group className="mb-3">
-                                  <Form.Label>Group Code</Form.Label>
-                                  <Form.Control
-                                    type="text"
-                                    placeholder="Enter group code"
-                                    value={joinCode}
-                                    onChange={(e) => setJoinCode(e.target.value)}
-                                    required
-                                  />
-                                </Form.Group>
-                                <Button
-                                  variant="primary"
-                                  type="submit"
-                                  className="w-100"
-                                  disabled={groupActionLoading}
-                                >
-                                  {groupActionLoading ? (
-                                    <Spinner size="sm" animation="border" />
-                                  ) : (
-                                    "Join Group"
-                                  )}
-                                </Button>
-                              </Form>
-                            </Card.Body>
-                          </Card>
-                        </Col>
-                      </Row>
-                    )}
+                        );
+                      }
+                    })()}
                   </>
                 )}
               </Tab.Pane>

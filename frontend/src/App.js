@@ -25,6 +25,7 @@ import "react-toastify/dist/ReactToastify.css";
 import UserProfile from "./Pages/UserProfile";
 import { MyContextProvider } from "./MyContextProvider";
 import React, { useState, useEffect } from "react";
+import LiveQuiz from './Pages/LiveQuiz';
 
 const router = createBrowserRouter([
   {
@@ -85,6 +86,10 @@ const router = createBrowserRouter([
       {
         path: "/user-profile",
         element: <UserProfile />,
+      },
+      {
+        path: '/live-quiz',
+        element: <LiveQuiz />,
       },
     ],
   },
