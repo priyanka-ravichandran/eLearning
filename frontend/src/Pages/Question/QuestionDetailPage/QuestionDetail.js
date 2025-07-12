@@ -19,7 +19,7 @@ function Question() {
   const { id } = useParams();
   const [submittedAnswer, setSubmittedAnswer] = useState("");
   const [llmVerification, setLlmVerification] = useState(null);
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext();
   const student_details = JSON.parse(localStorage.getItem("student_details"));
   const navigate = useNavigate();
 
@@ -126,7 +126,7 @@ function Question() {
       }
 
       // Refresh student details to update points in header immediately
-      await refreshStudentDetails(student_details.student._id, setStudentDetails);
+      await refreshStudentDetails(student_details.student._id);
       
     } catch (error) {
       console.error("Error fetching data:", error.message);

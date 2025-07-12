@@ -205,7 +205,7 @@ function App() {
   return (
     <div className="App">
       <Provider store={store}>
-        <MyContextProvider value={{ studentDetails, setStudentDetails }}>
+        <MyContextProvider>
           <PersistGate loading={null} persistor={persistor}>
             <RouterProvider router={router} />
           </PersistGate>

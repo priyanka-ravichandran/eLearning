@@ -2,15 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Card, Button, Tab, Nav, Form, Row, Col, Alert, Spinner, Toast, ToastContainer } from "react-bootstrap";
 import Avatar from "react-avatar";
 import AvatarShop from "../../components/AvatarShop";
+import { useMyContext } from "../../MyContextProvider";
 import "./index.css";
 
 const API_BASE = "http://localhost:3000";
 
 const UserProfile = () => {
-  // Initial student details from localStorage
-  const [studentDetails, setStudentDetails] = useState(() =>
-    JSON.parse(localStorage.getItem("student_details"))
-  );
+  // Use context for student details
+  const { studentDetails } = useMyContext();
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState(false);
   const [groupActionLoading, setGroupActionLoading] = useState(false);
@@ -58,11 +57,9 @@ const UserProfile = () => {
       });
       const data = await res.json();
       console.log("🔄 UserProfile: Received refreshed student details:", data);
-      
       if (data.status && data.data && data.data.student) {
         const newStudentDetails = { student: data.data.student };
         localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
-        setStudentDetails(newStudentDetails);
         
         // Don't clear groupDetails if we still have a group - prevent race condition
         if (data.data.student.group && (data.data.student.group._id || data.data.student.group.id)) {
@@ -144,7 +141,6 @@ const UserProfile = () => {
           if (data.status && data.data && data.data.student) {
             const newStudentDetails = { student: data.data.student };
             localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
-            setStudentDetails(newStudentDetails);
             
             // Set group details immediately if available to prevent flickering
             if (data.data.student.group && data.data.student.group._id) {
@@ -245,8 +241,7 @@ const UserProfile = () => {
       console.log("🔄 UserProfile: LocalStorage update event received:", event.detail);
       if (event.detail.key === 'student_details') {
         const newStudentDetails = JSON.parse(event.detail.value);
-        setStudentDetails(newStudentDetails);
-        // Don't clear groupDetails unnecessarily - let the studentDetails useEffect handle it
+        // Removed setStudentDetails(newStudentDetails);
       }
     };
 
@@ -524,53 +519,25 @@ const UserProfile = () => {
           <Tab.Container activeKey={activeTab} onSelect={setActiveTab}>
             <Nav variant="tabs" className="mb-4">
               <Nav.Item>
-                <Nav.Link eventKey="profile" className="fw-bold">
-                  Profile
-                </Nav.Link>
+                <Nav.Link eventKey="profile" className="fw-bold">Profile</Nav.Link>
               </Nav.Item>
               <Nav.Item>
-                <Nav.Link eventKey="group" className="fw-bold">
-                  Group
-                </Nav.Link>
+                <Nav.Link eventKey="group" className="fw-bold">Group</Nav.Link>
               </Nav.Item>
             </Nav>
             <Tab.Content>
-              {/* Profile Tab - Updated with Avatar */}
+              {/* Profile Tab */}
               <Tab.Pane eventKey="profile">
                 <Row className="align-items-center">
                   <Col xs={12} md={4} className="text-center mb-3">
                     {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt="User Avatar"
-                        style={{
-                          width: "90px",
-                          height: "90px",
-                          borderRadius: "50%",
-                          border: "3px solid #267c5d",
-                          objectFit: "cover"
-                        }}
-                      />
+                      <img src={avatarUrl} alt="User Avatar" style={{ width: "90px", height: "90px", borderRadius: "50%", border: "3px solid #267c5d", objectFit: "cover" }} />
                     ) : (
-                      <Avatar
-                        name={studentDetails?.student?.name || "User"}
-                        size="90"
-                        round
-                        color="#267c5d"
-                      />
+                      <Avatar name={studentDetails?.student?.name || "User"} size="90" round color="#267c5d" />
                     )}
-                    <h5 className="mt-3 mb-2 fw-bold">
-                      {studentDetails?.student?.name}
-                    </h5>
+                    <h5 className="mt-3 mb-2 fw-bold">{studentDetails?.student?.name}</h5>
                     <div className="text-muted mb-3">{studentDetails?.student?.email}</div>
-                    <Button 
-                      variant="primary" 
-                      size="sm"
-                      onClick={() => setShowAvatarShop(true)}
-                      className="customize-avatar-btn"
-                    >
-                      🎭 Customize Avatar
-                    </Button>
+                    <Button variant="primary" size="sm" onClick={() => setShowAvatarShop(true)} className="customize-avatar-btn">🎭 Customize Avatar</Button>
                   </Col>
                   <Col xs={12} md={8}>
                     <Row className="mb-2">

@@ -30,7 +30,7 @@ const HelpFriendDetails = () => {
   const [getSubmitAnswer] = useSubmitAnswerMutation();
   const [reactToAnswer] = useReactToAnswerMutation();
   const [llmFeedback, setLlmFeedback] = useState(null);
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext(); // Removed setStudentDetails
 
   const param = useParams();
   const userData = useSelector((state) => state.user.user);
@@ -57,7 +57,7 @@ const HelpFriendDetails = () => {
         }
 
         // Refresh student details to update points in header immediately
-        await refreshStudentDetails(userData?._id, setStudentDetails);
+        await refreshStudentDetails(userData?._id);
 
         // Refresh question / answers
         getQuestionDetails({
@@ -69,7 +69,7 @@ const HelpFriendDetails = () => {
         toast.error("Some error occurred");
         
         // Still try to refresh student details in case points were awarded
-        await refreshStudentDetails(userData?._id, setStudentDetails);
+        await refreshStudentDetails(userData?._id);
         
         // still refresh to get whatever came back
         getQuestionDetails({
@@ -331,7 +331,6 @@ const HelpFriendDetails = () => {
                   const pointsRefreshed = await refreshPointsIfCurrentUser(
                     answerAuthorId, 
                     userData._id, 
-                    setStudentDetails,
                     'reaction received'
                   );
                   

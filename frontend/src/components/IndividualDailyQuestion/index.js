@@ -16,7 +16,7 @@ const IndividualDailyQuestion = () => {
   const [submitting, setSubmitting] = useState(false);
   
   const userData = useSelector((state) => state.user.user);
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext();
   const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
   
   // Get student ID from multiple sources
@@ -106,7 +106,6 @@ const IndividualDailyQuestion = () => {
             if (data.status && data.data && data.data.student) {
               const newStudentDetails = { student: data.data.student };
               localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
-              setStudentDetails(newStudentDetails);
               
               // Broadcast the update
               window.dispatchEvent(new CustomEvent('localStorageUpdate', {

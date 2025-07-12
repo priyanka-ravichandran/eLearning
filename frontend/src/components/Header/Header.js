@@ -13,13 +13,13 @@ import { toast } from "react-toastify";
 import UserAvatar from "../UserAvatar";
 
 function Header() {
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext(); // Removed setStudentDetails
   const navigate = useNavigate();
 
   const handleLogout = () => {
     localStorage.clear(); // Clear all localStorage
     persistor.purge();
-    setStudentDetails(null);
+    // window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: null } }));
     toast.success("Logout Successful");
     navigate("/login");
   };

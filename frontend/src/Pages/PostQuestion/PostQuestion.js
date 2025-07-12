@@ -41,7 +41,7 @@ const PostQuestion = () => {
   const [postQuestion, { isLoading, isError }] = usePostQuestionMutation();
   const [getStudentAvatar, { data: avatarData }] = useGetStudentAvatarMutation();
   const userData = useSelector((state) => state.user?.user);
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext(); // Removed setStudentDetails
   var [data, setData] = useState();
     // Emotion Pop-up State
     const [showChatbot, setShowChatbot] = useState(false);
@@ -246,12 +246,12 @@ const PostQuestion = () => {
         if (userData?._id) {
           console.log('Refreshing student details after posting question...');
           console.log('Student ID:', userData._id);
-          const refreshResult = await refreshStudentDetails(userData._id, setStudentDetails);
-          console.log('Refresh result:', refreshResult);
+          const refreshResult = await refreshStudentDetails(userData._id);
+          // Manually trigger context sync event
           if (refreshResult) {
+            window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: JSON.stringify(refreshResult) } }));
             console.log('✅ Student details refreshed after question posting');
             console.log('New points from refresh:', refreshResult.student?.current_points);
-            
             // Force a re-render by updating the questions list
             getMyQuestions({
               start_date: new Date("03-03-2023"),
@@ -269,9 +269,9 @@ const PostQuestion = () => {
         // Still try to refresh student details in case points were awarded but not returned in response
         if (userData?._id) {
           console.log('Attempting to refresh student details anyway...');
-          const refreshResult = await refreshStudentDetails(userData._id, setStudentDetails);
-          console.log('Fallback refresh result:', refreshResult);
+          const refreshResult = await refreshStudentDetails(userData._id);
           if (refreshResult) {
+            window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: JSON.stringify(refreshResult) } }));
             console.log('New points from fallback refresh:', refreshResult.student?.current_points);
           }
         }

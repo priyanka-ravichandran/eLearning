@@ -7,42 +7,105 @@ import './LiveQuiz.css';
 const socket = io('http://localhost:3000'); // Update if deployed
 
 function LiveQuiz() {
-  const { studentDetails } = useMyContext();
+  const { studentDetails, refreshStudentDetails } = useMyContext();
   const [quizActive, setQuizActive] = useState(false);
   const [question, setQuestion] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [selected, setSelected] = useState('');
   const [timer, setTimer] = useState(0);
+  const [forceUpdate, setForceUpdate] = useState(0); // For manual re-render
   const timerRef = useRef();
 
+  // Helper: robust group membership check
+  const getGroupId = () => {
+    const group = studentDetails?.student?.group;
+    if (!group) return null;
+    if (typeof group === 'string') return group;
+    return group._id || group.id || null;
+  };
+
   useEffect(() => {
-    if (studentDetails?.group?._id && studentDetails?.student?._id) {
+    // Debug logs
+    console.log('LiveQuiz MOUNT studentDetails:', studentDetails);
+    console.log('LiveQuiz MOUNT group:', studentDetails?.student?.group);
+
+    // Listen for localStorageUpdate event to refresh context/state
+    const handleLocalStorageUpdate = () => {
+      console.log('LiveQuiz: localStorageUpdate event received');
+      if (refreshStudentDetails) {
+        refreshStudentDetails();
+      }
+      setForceUpdate(f => f + 1); // Force re-render if context doesn't update
+    };
+    window.addEventListener('localStorageUpdate', handleLocalStorageUpdate);
+
+    return () => {
+      window.removeEventListener('localStorageUpdate', handleLocalStorageUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Debug logs on context change
+    console.log('LiveQuiz studentDetails updated:', studentDetails);
+    console.log('LiveQuiz group updated:', studentDetails?.student?.group);
+
+    const groupId = getGroupId();
+    if (groupId && studentDetails?.student?._id) {
       socket.emit('joinQuiz', {
-        groupId: studentDetails.group._id,
+        groupId,
         userId: studentDetails.student._id
       });
     }
-    socket.on('quizStarted', ({ question }) => {
+    socket.on('quizStarted', ({ question, quizStartTime, serverTime, answers: initialAnswers }) => {
       setQuizActive(true);
       setQuestion(question);
-      setAnswers([]);
       setSelected('');
-      setTimer(15 * 60); // 15 minutes in seconds
+      // Timer sync using server time
+      const QUIZ_DURATION = 15 * 60; // 15 minutes in seconds
+      if (quizStartTime && serverTime) {
+        const now = Date.now();
+        const offset = now - serverTime; // client-server clock diff
+        const elapsed = Math.floor((now - quizStartTime - offset) / 1000);
+        const remaining = QUIZ_DURATION - elapsed;
+        setTimer(remaining > 0 ? remaining : 0);
+      } else if (quizStartTime) {
+        const now = Date.now();
+        const elapsed = Math.floor((now - quizStartTime) / 1000);
+        const remaining = QUIZ_DURATION - elapsed;
+        setTimer(remaining > 0 ? remaining : 0);
+      } else {
+        setTimer(QUIZ_DURATION);
+      }
+      setAnswers(initialAnswers || []);
+      // If any answer exists, block all users
+      if (initialAnswers && initialAnswers.length > 0) {
+        // If this user already answered, set selected
+        const myAnswer = initialAnswers.find(a => a.userId === studentDetails.student._id);
+        if (myAnswer) setSelected(myAnswer.answer);
+      }
     });
     socket.on('quizInactive', () => {
       setQuizActive(false);
       setQuestion(null);
       setTimer(0);
+      setAnswers([]);
+      setSelected('');
     });
-    socket.on('answerUpdate', ({ userId, answer }) => {
-      setAnswers(prev => [...prev, { userId, answer }]);
+    socket.on('answerUpdate', ({ answers: updatedAnswers }) => {
+      setAnswers(updatedAnswers || []);
+      // If any answer exists, set selected to the group's answer for all users
+      if (updatedAnswers && updatedAnswers.length > 0) {
+        setSelected(updatedAnswers[0].answer); // Always show the group's answer
+      } else {
+        setSelected('');
+      }
     });
     return () => {
       socket.off('quizStarted');
       socket.off('quizInactive');
       socket.off('answerUpdate');
     };
-  }, [studentDetails]);
+  }, [studentDetails, forceUpdate]);
 
   // Timer countdown
   useEffect(() => {
@@ -57,18 +120,31 @@ function LiveQuiz() {
   const handleAnswer = (ans) => {
     setSelected(ans);
     socket.emit('submitAnswer', {
-      groupId: studentDetails.group._id,
+      groupId: getGroupId(),
       userId: studentDetails.student._id,
       answer: ans
     });
   };
 
+  // DEBUG: Log studentDetails structure
+  console.log('studentDetails:', studentDetails);
+
   const handleStartQuiz = async () => {
-    await fetch('http://localhost:3000/test-start-quiz');
+    const groupId = getGroupId();
+    if (!studentDetails.student || !groupId) {
+      alert('You must join a group to start the quiz.');
+      return;
+    }
+    await fetch(`http://localhost:3000/test-start-quiz?groupId=${groupId}`);
   };
 
   const handleEndQuiz = async () => {
-    await fetch('http://localhost:3000/test-end-quiz');
+    const groupId = getGroupId();
+    if (!studentDetails.student || !groupId) {
+      alert('You must join a group to end the quiz.');
+      return;
+    }
+    await fetch(`http://localhost:3000/test-end-quiz?groupId=${groupId}`);
   };
 
   const formatTime = (secs) => {
@@ -81,10 +157,14 @@ function LiveQuiz() {
     <div className="live-quiz-container">
       <h2 className="quiz-title">📝 Weekly Live Quiz</h2>
       <div style={{ marginBottom: 16 }}>
-        <button onClick={handleStartQuiz} className="quiz-option-btn" style={{ marginRight: 8 }}>Start Test Quiz</button>
-        <button onClick={handleEndQuiz} className="quiz-option-btn">End Test Quiz</button>
+        <button onClick={handleStartQuiz} className="quiz-option-btn" style={{ marginRight: 8 }} disabled={!studentDetails.student || !getGroupId()}>Start Test Quiz</button>
+        <button onClick={handleEndQuiz} className="quiz-option-btn" disabled={!studentDetails.student || !getGroupId()}>End Test Quiz</button>
       </div>
-      {quizActive && question ? (
+      {!studentDetails.student || !getGroupId() ? (
+        <div className="quiz-inactive">
+          <p>You must join a group to participate in the live quiz.</p>
+        </div>
+      ) : quizActive && question ? (
         <div className="quiz-card">
           <div className="quiz-header">
             <h4>{question.text}</h4>
@@ -93,7 +173,13 @@ function LiveQuiz() {
           <ul className="quiz-options">
             {question.options.map(opt => (
               <li key={opt}>
-                <button className={`quiz-option-btn${selected === opt ? ' selected' : ''}`} disabled={!!selected} onClick={() => handleAnswer(opt)}>{opt}</button>
+                <button
+                  className={`quiz-option-btn${selected === opt ? ' selected' : ''}`}
+                  disabled={answers.length > 0 || selected}
+                  onClick={() => handleAnswer(opt)}
+                >
+                  {opt}
+                </button>
               </li>
             ))}
           </ul>

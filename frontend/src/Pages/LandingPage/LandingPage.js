@@ -25,7 +25,7 @@ const base_url = process.env.REACT_APP_BASE_URL;
 
 function LandingPage() {
   const navigate = useNavigate();
-  const { studentDetails, setStudentDetails } = useMyContext();
+  const { studentDetails } = useMyContext(); // Removed setStudentDetails
   const student_details = JSON.parse(localStorage.getItem("student_details"));
   const [showChatbot, setShowChatbot] = useState(true);
   const [coord, setCoord] = useState({ x: 0, y: 0 });
@@ -55,10 +55,6 @@ function LandingPage() {
   }, []);
 
   useEffect(() => {
-    setStudentDetails(student_details);
-  }, []);
-
-  useEffect(() => {
     if (!student_details) {
       navigate("/login");
     }
@@ -84,7 +80,9 @@ function LandingPage() {
       if (event.detail.key === 'student_details') {
         // Parse the new student details and update state
         const newStudentDetails = JSON.parse(event.detail.value);
-        setStudentDetails(newStudentDetails);
+        // When you need to update student details:
+        // localStorage.setItem("student_details", JSON.stringify(newStudentDetails));
+        // window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: JSON.stringify(newStudentDetails) } }));
         setRefreshKey(prev => prev + 1); // Force re-render
       }
     };
@@ -183,7 +181,9 @@ function LandingPage() {
         };
 
         toast.success("Village level has been upgraded successfully!");
-        setStudentDetails(updatedStudentDetails);
+        // When you need to update student details:
+        // localStorage.setItem("student_details", JSON.stringify(updatedStudentDetails));
+        // window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: JSON.stringify(updatedStudentDetails) } }));
         
         // Update localStorage as well
         localStorage.setItem("student_details", JSON.stringify(updatedStudentDetails));
@@ -222,7 +222,9 @@ function LandingPage() {
 
       if (data.status && data.data) {
         // Update the studentDetails state
-        setStudentDetails(data.data);
+        // When you need to update student details:
+        // localStorage.setItem("student_details", JSON.stringify(data.data));
+        // window.dispatchEvent(new CustomEvent('studentDetailsUpdated', { detail: { value: JSON.stringify(data.data) } }));
         
         // Also update localStorage with the latest data
         localStorage.setItem("student_details", JSON.stringify(data.data));
