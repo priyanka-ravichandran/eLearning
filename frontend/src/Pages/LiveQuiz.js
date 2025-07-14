@@ -222,12 +222,29 @@ function LiveQuiz() {
     return answers[idx]?.by || null;
   };
 
-  // Helper: get the name of the student by id
+  // --- Fetch group members for name mapping ---
+  const [groupMembers, setGroupMembers] = useState([]);
+  useEffect(() => {
+    const groupId = getGroupId();
+    if (!groupId) return;
+    fetch(`http://localhost:3000/group/members/${groupId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.members)) {
+          setGroupMembers(data.members);
+        }
+      });
+  }, [studentDetails]);
+
+  // Helper: get the name of the student by id (prefer fetched groupMembers)
   const getStudentName = (id) => {
     if (!id) return 'Unknown';
+    const found = groupMembers.find((m) => m.id === id || m.id === String(id));
+    if (found) return found.name;
+    // fallback to context if not found
     const group = studentDetails?.groupMembers || [];
-    const found = group.find((m) => m._id === id || m.id === id);
-    return found ? found.name || found.fullName || found.username : id;
+    const fallback = group.find((m) => m._id === id || m.id === id);
+    return fallback ? fallback.name || fallback.fullName || fallback.username : id;
   };
 
   // Remove all disabling logic and allow live selection by any member
@@ -379,6 +396,15 @@ function LiveQuiz() {
     // eslint-disable-next-line
   }, [studentDetails]);
 
+  // Listen for quizStarted event to sync all group members instantly
+  useEffect(() => {
+    const handler = () => {
+      handleStartQuiz(); // Always re-fetch quiz data and force UI update
+    };
+    socket.on('quizStarted', handler);
+    return () => socket.off('quizStarted', handler);
+  }, []); // No dependencies, always active
+
   return (
     <div className="live-quiz-container">
       <h2 className="quiz-title" style={{ color: '#2d3a4b', fontWeight: 700, marginBottom: 24, letterSpacing: 1 }}>
@@ -448,7 +474,9 @@ function LiveQuiz() {
             <p className="your-answer" style={{ color: '#16a34a', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Your answer: <b>{selected}</b></p>
           )}
           {isAnsweredByAnyone(currentIdx) && getAnsweredBy(currentIdx) !== userId && (
-            <p className="your-answer" style={{ color: '#e11d48', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Answered by another group member.</p>
+            <p className="your-answer" style={{ color: '#e11d48', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>
+              Answered by: <b>{getStudentName(getAnsweredBy(currentIdx))}</b>
+            </p>
           )}
           <div className="quiz-nav-btns" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
             <button onClick={handlePrev} disabled={currentIdx === 0} className="quiz-option-btn" style={{ background: '#f1f5f9', color: '#2563eb', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, border: '1px solid #2563eb', opacity: currentIdx === 0 ? 0.5 : 1 }}>Previous</button>

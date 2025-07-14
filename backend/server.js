@@ -151,6 +151,8 @@ app.post('/api/generate-math-quiz', (req, res) => {
   const questions = Array.from({ length: 5 }, generateQuestion);
   const startTime = now;
   groupQuizSessions[groupId] = { questions, startTime, answered: {}, answers: Array(5).fill(null), currentQuestionIdx: 0 };
+  // Notify all group members that quiz has started
+  io.to(`group_${groupId}`).emit('quizStarted');
   res.json({ success: true, questions, startTime, answers: Array(5).fill(null), currentQuestionIdx: 0 });
 });
 
