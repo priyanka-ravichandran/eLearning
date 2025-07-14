@@ -58,7 +58,7 @@ const io = require('socket.io')(server, {
 });
 
 // --- LIVE GROUP QUIZ SOCKET LOGIC ---
-const groupQuizSessions = {}; // { [groupId]: { questions, startTime, answered: { [questionIdx]: true } } }
+const groupQuizSessions = {}; // { [groupId]: { questions, startTime, answers: [] } }
 
 io.on('connection', (socket) => {
   // Join group room
@@ -66,29 +66,35 @@ io.on('connection', (socket) => {
     socket.join(`group_${groupId}`);
   });
 
-  // Handle answer selection
-  socket.on('answerQuestion', ({ groupId, questionIdx, answer }) => {
-    const session = groupQuizSessions[groupId];
-    if (!session) {
-      socket.emit('error', { message: 'No active quiz session.' });
-      return;
+  // Real-time answer update: sync answers for all group members
+  socket.on('answerUpdate', ({ groupId, questionIdx, answer, by }) => {
+    if (!groupQuizSessions[groupId]) return;
+    if (!groupQuizSessions[groupId].answers) groupQuizSessions[groupId].answers = Array(5).fill(null); // Ensure array length
+    groupQuizSessions[groupId].answers[questionIdx] = { answer, by };
+    // Broadcast the full answers array to all group members
+    io.to(`group_${groupId}`).emit('answerUpdate', { answers: groupQuizSessions[groupId].answers });
+  });
+
+  // Optionally, you can keep navigation sync if needed
+  socket.on('navigateQuestion', ({ groupId, questionIdx }) => {
+    if (groupQuizSessions[groupId]) {
+      groupQuizSessions[groupId].currentQuestionIdx = questionIdx;
     }
-    if (!session.answered) session.answered = {};
-    if (session.answered[questionIdx]) {
-      socket.emit('questionLocked', { questionIdx });
-      return;
+    io.to(`group_${groupId}`).emit('navigateQuestion', { questionIdx });
+  });
+
+  // Remove question locking logic for real-time collaboration
+
+  // Handle quiz end/reset for a group
+  socket.on('endGroupQuiz', ({ groupId }) => {
+    if (groupQuizSessions[groupId]) {
+      delete groupQuizSessions[groupId];
     }
-    // Mark question as answered
-    session.answered[questionIdx] = true;
-    // Broadcast to all group members that this question is now locked
-    io.to(`group_${groupId}`).emit('questionLocked', { questionIdx });
-    // Optionally, check answer correctness and send feedback
-    const correct = session.questions[questionIdx].answer === answer;
-    socket.emit('answerResult', { questionIdx, correct });
+    io.to(`group_${groupId}`).emit('quizInactive');
   });
 });
 
-// --- API to start quiz session (unchanged, but add answered tracking) ---
+// --- API to start quiz session (unchanged, but add answers array) ---
 app.post('/api/generate-math-quiz', (req, res) => {
   const groupId = req.body && req.body.groupId;
   if (!groupId) {
@@ -97,8 +103,8 @@ app.post('/api/generate-math-quiz', (req, res) => {
   const QUIZ_DURATION = 15 * 60 * 1000; // 15 min in ms
   const now = Date.now();
   if (groupQuizSessions[groupId] && now - groupQuizSessions[groupId].startTime < QUIZ_DURATION) {
-    const { questions, startTime } = groupQuizSessions[groupId];
-    return res.json({ success: true, questions, startTime });
+    const { questions, startTime, answers, currentQuestionIdx } = groupQuizSessions[groupId];
+    return res.json({ success: true, questions, startTime, answers: answers || [], currentQuestionIdx: currentQuestionIdx || 0 });
   }
   function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -144,8 +150,8 @@ app.post('/api/generate-math-quiz', (req, res) => {
   }
   const questions = Array.from({ length: 5 }, generateQuestion);
   const startTime = now;
-  groupQuizSessions[groupId] = { questions, startTime, answered: {} };
-  res.json({ success: true, questions, startTime });
+  groupQuizSessions[groupId] = { questions, startTime, answered: {}, answers: Array(5).fill(null), currentQuestionIdx: 0 };
+  res.json({ success: true, questions, startTime, answers: Array(5).fill(null), currentQuestionIdx: 0 });
 });
 
 // Serve React app for any unknown route (except API and uploads)
