@@ -27,6 +27,9 @@ function Header() {
   // Use context first, fallback to localStorage
   const student_details = studentDetails || JSON.parse(localStorage.getItem("student_details"));
 
+  // Get group points robustly (support both .group and .student.group)
+  const groupPoints = student_details?.student?.group?.current_points ?? student_details?.group?.current_points ?? 0;
+
   // Force re-render when studentDetails change
   useEffect(() => {
     console.log('🔄 Header - Student details updated:', {
@@ -49,17 +52,17 @@ function Header() {
         </Navbar.Brand>
       </Nav>
       <Nav>
-        {student_details?.group && (
+        {student_details?.student?.group || student_details?.group ? (
           <Navbar.Text className="d-flex align-items-center flex-column px-4">
             <span className="points-title">GROUP</span>
             <span className="d-flex align-items-center">
               <img className="options shell" src={shell} alt="Points:" />
               <span className="points">
-                {student_details?.group?.current_points}
+                {groupPoints}
               </span>
             </span>
           </Navbar.Text>
-        )}
+        ) : null}
         <Navbar.Text className="d-flex align-items-center flex-column px-4">
           <span className="points-title">INDIVIDUAL</span>
           <span className="d-flex align-items-center">

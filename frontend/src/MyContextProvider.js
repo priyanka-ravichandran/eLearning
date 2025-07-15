@@ -16,8 +16,21 @@ export const MyContextProvider = ({ children }) => {
     return () => window.removeEventListener("localStorageUpdate", handleLocalStorageUpdate);
   }, []);
 
+  // Add refreshStudentDetails to update both localStorage and context, and fire event
+  const refreshStudentDetails = async () => {
+    const stored = localStorage.getItem("student_details");
+    if (stored) {
+      setStudentDetails(JSON.parse(stored));
+      window.dispatchEvent(
+        new CustomEvent("localStorageUpdate", {
+          detail: { key: "student_details", value: stored },
+        })
+      );
+    }
+  };
+
   return (
-    <MyContext.Provider value={{ studentDetails }}>
+    <MyContext.Provider value={{ studentDetails, refreshStudentDetails }}>
       {children}
     </MyContext.Provider>
   );

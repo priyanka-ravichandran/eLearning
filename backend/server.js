@@ -10,6 +10,7 @@ const cron = require("node-cron");
 const dailyChallengeRepo = require("./src/repository/daily_challenge.repository");
 const individualQuestionRepo = require("./src/repository/individual_daily_question.repository");
 const http = require('http');
+const axios = require('axios');
 
 const app = express();
 
@@ -68,9 +69,11 @@ io.on('connection', (socket) => {
 
   // Real-time answer update: sync answers for all group members
   socket.on('answerUpdate', ({ groupId, questionIdx, answer, by }) => {
+    console.log('[RECV answerUpdate]', { groupId, questionIdx, answer, by });
     if (!groupQuizSessions[groupId]) return;
     if (!groupQuizSessions[groupId].answers) groupQuizSessions[groupId].answers = Array(5).fill(null); // Ensure array length
     groupQuizSessions[groupId].answers[questionIdx] = { answer, by };
+    console.log('[UPDATE answers]', groupQuizSessions[groupId].answers);
     // Broadcast the full answers array to all group members
     io.to(`group_${groupId}`).emit('answerUpdate', { answers: groupQuizSessions[groupId].answers });
   });
@@ -86,11 +89,59 @@ io.on('connection', (socket) => {
   // Remove question locking logic for real-time collaboration
 
   // Handle quiz end/reset for a group
-  socket.on('endGroupQuiz', ({ groupId }) => {
-    if (groupQuizSessions[groupId]) {
-      delete groupQuizSessions[groupId];
+  socket.on('endGroupQuiz', async ({ groupId }) => {
+    const session = groupQuizSessions[groupId];
+    if (!session) return; // Already handled
+    delete groupQuizSessions[groupId]; // Prevent duplicate handling
+    console.log('[END QUIZ answers]', session.answers);
+    // Check if any answers were submitted (0 is a valid answer)
+    const anyAnswered = (session.answers || []).some(a => a && a.answer !== undefined && a.answer !== null);
+    if (!anyAnswered) {
+      // No answers submitted, emit notAttempted flag
+      io.to(`group_${groupId}`).emit('quizScore', { notAttempted: true });
+      return;
     }
-    io.to(`group_${groupId}`).emit('quizInactive');
+    // Prepare data for LLM
+    const questions = session.questions.map(q => q.text);
+    const correctAnswers = session.questions.map(q => q.answer);
+    const userAnswers = session.answers.map(a => a?.answer);
+    // Call LLM API to score
+    let score = 0;
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      const prompt = `You are a math quiz grader. Each question is worth 2 points. There are 5 questions. For each question, if the user's answer matches the correct answer, award 2 points. Otherwise, 0. Return the total score (max 10) as a number.\nQuestions: ${JSON.stringify(questions)}\nCorrect Answers: ${JSON.stringify(correctAnswers)}\nUser Answers: ${JSON.stringify(userAnswers)}\nScore:`;
+      console.log('LLM Prompt:', prompt);
+      const response = await axios.post('https://api.openai.com/v1/completions', {
+        model: 'gpt-3.5-turbo-instruct',
+        prompt,
+        max_tokens: 5,
+        temperature: 0
+      }, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('LLM Raw Response:', response.data);
+      const llmScore = parseInt(response.data.choices[0].text.match(/\d+/)?.[0] || '0', 10);
+      console.log('LLM Parsed Score:', llmScore);
+      score = Math.min(llmScore, 10);
+    } catch (err) {
+      console.error('LLM scoring failed, falling back to code scoring:', err.message);
+      // Fallback to code scoring
+      for (let i = 0; i < session.questions.length; i++) {
+        if (userAnswers[i] === correctAnswers[i]) score += 2;
+      }
+      if (score > 10) score = 10;
+      console.log('Fallback code scoring used. Score:', score);
+    }
+    // Update group points in DB
+    const groupRepo = require('./src/repository/group.repository');
+    await groupRepo.addPointsToGroup(groupId, score);
+    // Emit score to all group members
+    io.to(`group_${groupId}`).emit('quizScore', { score });
+    // Clean up session (already deleted above)
+    // Do NOT emit quizInactive here; let frontend control when to hide the quiz after showing the score
   });
 });
 

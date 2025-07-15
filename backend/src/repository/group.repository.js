@@ -290,6 +290,22 @@ const syncVillageLevel = async (group_id) => {
   }
 };
 
+const addPointsToGroup = async (groupId, points) => {
+  try {
+    const group = await Group.findById(groupId);
+    if (!group) throw new Error('Group not found');
+    group.total_points_earned += points;
+    group.current_points += points;
+    await group.save();
+    await syncVillageLevel(groupId);
+    await update_group_rank();
+    return { success: true };
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error adding points to group');
+  }
+};
+
 module.exports = {
   findById,
   create_group,
@@ -300,4 +316,5 @@ module.exports = {
   get_group_leaderboard,
   updateVillageLevel,
   syncVillageLevel,
+  addPointsToGroup,
 };

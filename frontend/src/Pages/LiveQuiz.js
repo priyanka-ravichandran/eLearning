@@ -21,6 +21,8 @@ function LiveQuiz() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState([]);
+  const [finalScore, setFinalScore] = useState(null);
+  const [showScoreModal, setShowScoreModal] = useState(false);
   const timerRef = useRef();
   const userId = studentDetails?.student?._id || studentDetails?.student?.id || '';
 
@@ -304,29 +306,35 @@ function LiveQuiz() {
 
   // Show summary before ending quiz
   const handleShowSummary = () => {
+    // Robust name lookup for summary
+    const getName = (id) => {
+      if (!id) return 'Unknown';
+      let found = groupMembers.find((m) => m.id === id || m.id === String(id));
+      if (found) return found.name || found.fullName || found.username || id;
+      const group = studentDetails?.groupMembers || [];
+      found = group.find((m) => m._id === id || m.id === id || String(m._id) === String(id));
+      return found ? found.name || found.fullName || found.username || id : id;
+    };
     const summary = questions.map((q, idx) => {
       const ansObj = answers[idx];
       return {
         question: q.text,
         answer: ansObj?.answer || '(No answer)',
-        by: getStudentName(ansObj?.by)
+        by: getName(ansObj?.by)
       };
     });
     setSummaryData(summary);
     setShowSummary(true);
   };
 
+  // Only end the quiz, do not reset state or fetch new quiz until user clicks start
   const handleEndQuiz = () => {
+    setQuizActive(false); // Disable button immediately to prevent double submit
     const groupId = getGroupId();
     if (groupId) {
       socket.emit('endGroupQuiz', { groupId });
     }
-    setQuizActive(false);
-    setQuestions([]);
-    setAnswers([]);
-    setCurrentIdx(0);
-    setSelected('');
-    setTimer(0);
+    // Do NOT reset questions/answers here; let quizInactive event handle it
     setShowSummary(false);
   };
 
@@ -347,23 +355,12 @@ function LiveQuiz() {
     };
   }, []);
 
-  // Auto end quiz when timer runs out
-  useEffect(() => {
-    if (quizActive && timer === 0) {
-      handleEndQuiz();
-    }
-  }, [quizActive, timer]);
-
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
   // --- AUTO-JOIN OR START QUIZ ON MOUNT ---
   useEffect(() => {
     const groupId = getGroupId();
     if (!groupId) return;
+    // Only auto-fetch if quizActive is true (prevents auto-start after end)
+    if (!quizActive) return;
     fetch('http://localhost:3000/api/generate-math-quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -394,7 +391,7 @@ function LiveQuiz() {
         }
       });
     // eslint-disable-next-line
-  }, [studentDetails]);
+  }, [studentDetails, quizActive]);
 
   // Listen for quizStarted event to sync all group members instantly
   useEffect(() => {
@@ -405,29 +402,60 @@ function LiveQuiz() {
     return () => socket.off('quizStarted', handler);
   }, []); // No dependencies, always active
 
+  // Listen for quizScore event from backend
+  useEffect(() => {
+    const handler = (data) => {
+      // Only show the score modal if a valid score is present
+      const isMine = () => {
+        if (!data.userId) return true;
+        return String(data.userId) === String(userId);
+      };
+      if (!isMine()) return;
+      console.log('[QUIZ SCORE EVENT]', data); // Debug log
+      if (typeof data.score === 'number') {
+        setFinalScore(data.score);
+        setShowScoreModal(true);
+      }
+      if (refreshStudentDetails) refreshStudentDetails();
+    };
+    socket.off('quizScore'); // Remove any previous listeners to avoid duplicates
+    socket.on('quizScore', handler);
+    return () => socket.off('quizScore', handler);
+  }, [userId, refreshStudentDetails]);
+
+  // Timer formatting helper (define before return)
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="live-quiz-container">
       <h2 className="quiz-title" style={{ color: '#2d3a4b', fontWeight: 700, marginBottom: 24, letterSpacing: 1 }}>
         <span role="img" aria-label="quiz">📝</span> Weekly Live Quiz
       </h2>
-      <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
-        <button
-          onClick={() => handleStartQuiz()}
-          className="quiz-option-btn"
-          style={{ marginRight: 8, background: '#2563eb', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, boxShadow: '0 2px 8px #2563eb22' }}
-          disabled={!studentDetails.student || !getGroupId() || quizActive}
-        >
-          Start Test Quiz
-        </button>
-        <button
-          onClick={handleEndQuiz}
-          className="quiz-option-btn"
-          style={{ background: '#e11d48', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, boxShadow: '0 2px 8px #e11d4822' }}
-          disabled={!quizActive}
-        >
-          End Test Quiz
-        </button>
-      </div>
+      {/* Hide quiz control buttons when score modal is open */}
+      {!showScoreModal && (
+        <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => handleStartQuiz()}
+            className="quiz-option-btn"
+            style={{ marginRight: 8, background: '#2563eb', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, boxShadow: '0 2px 8px #2563eb22' }}
+            disabled={!studentDetails.student || !getGroupId() || quizActive}
+          >
+            Start Test Quiz
+          </button>
+          <button
+            onClick={handleEndQuiz}
+            className="quiz-option-btn"
+            style={{ background: '#e11d48', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, boxShadow: '0 2px 8px #e11d4822' }}
+            disabled={!quizActive || showScoreModal} // Prevent double click while modal is open
+          >
+            End Test Quiz
+          </button>
+        </div>
+      )}
       {!studentDetails.student || !getGroupId() ? (
         <div className="quiz-inactive" style={{ background: '#f8fafc', borderRadius: 12, padding: 32, boxShadow: '0 2px 12px #0001' }}>
           <p style={{ color: '#64748b', fontSize: 18 }}>You must join a group to participate in the live quiz.</p>
@@ -507,6 +535,15 @@ function LiveQuiz() {
             </ul>
             <button onClick={handleEndQuiz} className="quiz-option-btn" style={{ background: '#e11d48', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, marginTop: 16 }}>End Quiz</button>
             <button onClick={() => setShowSummary(false)} className="quiz-option-btn" style={{ background: '#f1f5f9', color: '#2563eb', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, marginTop: 8, marginLeft: 8 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {showScoreModal && (
+        <div className="quiz-summary-modal" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#0008', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', boxShadow: '0 4px 24px #0002', textAlign: 'center' }}>
+            <h2 style={{ color: '#2563eb', fontWeight: 700, marginBottom: 16 }}>Quiz Score</h2>
+            <div style={{ fontSize: 48, fontWeight: 800, color: '#16a34a', marginBottom: 16 }}>{finalScore} / 10</div>
+            <button onClick={() => setShowScoreModal(false)} className="quiz-option-btn" style={{ background: '#2563eb', color: '#fff', fontWeight: 600, borderRadius: 6, padding: '8px 20px', fontSize: 16, marginTop: 16 }}>Close</button>
           </div>
         </div>
       )}
