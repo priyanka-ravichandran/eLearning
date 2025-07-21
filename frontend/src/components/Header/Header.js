@@ -97,6 +97,9 @@ function Header() {
         <Nav.Link className="px-4" as={Link} to="/live-quiz">
           <span role="img" aria-label="quiz">📝</span> Live Quiz
         </Nav.Link>
+        <Nav.Link className="px-4" as={Link} to="/group-daily-challenge">
+          <span role="img" aria-label="challenge">🏆</span> Group Daily Challenge
+        </Nav.Link>
 
         <NavDropdown
           className="ps-4"

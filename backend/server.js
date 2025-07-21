@@ -296,6 +296,21 @@ cron.schedule("59 23 * * *", async () => {
   }
 });
 
+const { postGroupDailyChallenge } = require('./src/controllers/daily_challenge/groupDailyChallenge.controller');
+const { getNextSubject } = require('./src/utils/subjectAlternator');
+
+// Every day at midnight - Generate group daily challenge, alternate subjects
+cron.schedule('0 0 * * *', async () => {
+  console.log('🕛 12:00 AM - Generating group daily challenge...');
+  try {
+    const subject = getNextSubject();
+    await postGroupDailyChallenge(subject);
+    console.log(`✅ Group daily challenge posted for subject: ${subject}`);
+  } catch (error) {
+    console.error('❌ Error posting group daily challenge:', error.message);
+  }
+});
+
 // Legacy cron job
 cron.schedule("0 0 * * *", () => {
   sendReminders();

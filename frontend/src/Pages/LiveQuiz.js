@@ -3,7 +3,6 @@ import io from 'socket.io-client';
 import { useMyContext } from '../MyContextProvider';
 import UserAvatar from '../components/UserAvatar';
 import './LiveQuiz.css';
-import '../overlay-debug.css'; // DEBUG: highlight overlays and force pointer events
 
 const socket = io('http://localhost:3000'); // Update if deployed
 

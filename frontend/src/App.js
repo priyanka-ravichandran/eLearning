@@ -26,6 +26,7 @@ import UserProfile from "./Pages/UserProfile";
 import { MyContextProvider } from "./MyContextProvider";
 import React, { useState, useEffect } from "react";
 import LiveQuiz from './Pages/LiveQuiz';
+import GroupDailyChallenge from './Pages/GroupDailyChallenge';
 
 const router = createBrowserRouter([
   {
@@ -90,6 +91,10 @@ const router = createBrowserRouter([
       {
         path: '/live-quiz',
         element: <LiveQuiz />,
+      },
+      {
+        path: '/group-daily-challenge',
+        element: <GroupDailyChallenge />,
       },
     ],
   },
