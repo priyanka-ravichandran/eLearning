@@ -6,6 +6,7 @@ import UserAvatar from "../../components/UserAvatar";
 import {
   useGetGroupDetailsMutation,
   useGetGroupLeaderBoardMutation,
+  useGetGroupAchievementsMutation,
 } from "../../redux/api/groupsApi";
 import {
   useGetIndividualLeaderBoardMutation,
@@ -157,6 +158,7 @@ const LeaderBoard = () => {
     useGetGroupDetailsMutation();
   const [getGroupLeaderBoard, { data: groupLeaderBoard }] =
     useGetGroupLeaderBoardMutation();
+  const [getGroupAchievements, { data: groupAchievementsData }] = useGetGroupAchievementsMutation();
 
   const [getStudentDetails, { data: studentsData }] =
     useGetStudentDetailsMutation();
@@ -172,11 +174,28 @@ const LeaderBoard = () => {
   }
 
   useEffect(() => {
-    getGroupDetails({ group_id: "" });
+    // Only fetch group details if groupId exists
+    const groupId = student_details?.student?.group?._id;
+    if (groupId) {
+      getGroupDetails({ group_id: groupId });
+    } else {
+      console.warn("[LeaderBoard] No group ID found for student. Group details will not be fetched.");
+    }
     getStudentDetails({ student_id: userData?._id });
     getIndividualLeaderBoard({ student_id: userData?._id });
     getGroupLeaderBoard();
   }, []);
+
+  useEffect(() => {
+    // Debug: Log group ID used for achievements fetch
+    const groupId = student_details?.student?.group?._id;
+    console.log("[LeaderBoard] Fetching group achievements for groupId:", groupId);
+    if (groupId) {
+      getGroupAchievements({ group_id: groupId });
+    } else {
+      console.warn("[LeaderBoard] No group ID found for student. Group achievements will not be fetched.");
+    }
+  }, [student_details?.student?.group?._id, getGroupAchievements]);
 
   //create function to get only ser which have individual_rank>0 from indivdual_leaderboard
   const getFilteredIndividualLeaderBoardData = () => {
@@ -200,6 +219,22 @@ const LeaderBoard = () => {
   if (individualLeaderBoardData?.data?.payload?.individual_leaderboard) {
     console.log("🔍 First user in leaderboard:", individualLeaderBoardData.data.payload.individual_leaderboard[0]);
   }
+
+  // Debug: Log group achievements data to verify structure
+  console.log("Group Achievements Data (raw):", groupAchievementsData);
+  if (groupAchievementsData && groupAchievementsData.data) {
+    console.log("Group Achievements Data (payload):", groupAchievementsData.data.group_achievements);
+  } else {
+    console.warn("[LeaderBoard] groupAchievementsData is undefined or missing data property.");
+  }
+
+  // Helper to safely get group achievements array
+  const getSafeGroupAchievements = () => {
+    if (!groupAchievementsData) return null; // loading or not fetched
+    if (!groupAchievementsData.data) return [];
+    if (!Array.isArray(groupAchievementsData.data.group_achievements)) return [];
+    return groupAchievementsData.data.group_achievements;
+  };
 
   return (
     <>
@@ -261,7 +296,6 @@ const LeaderBoard = () => {
                         {data?.total_points_earned}
                       </span>
                     </div>
-                    {/* <div>Level: {data?.level || data?.individual_rank}</div> */}
                   </div>
                 </div>
               ))}
@@ -271,15 +305,16 @@ const LeaderBoard = () => {
             {groupLeaderBoard?.data?.payload?.group_leaderboard
               ?.slice(0, 3)
               ?.map((data) => (
-                <div key={data?.group_no} className="leaderboard-card">
+                <div key={data?._id} className="leaderboard-card">
                   <div className="leader-card-header">
                     <div className="card-no">{data?.group_rank}</div>
                     <div className="group-users-sec">
                       {data?.team_members?.map((student) => (
                         <div className="group-users" key={student._id}>
-                          <img
-                            src={userImage}
-                            alt="user"
+                          <UserAvatar
+                            user={student}
+                            size="40"
+                            round={true}
                             className="group-user"
                           />
                           <div>
@@ -292,7 +327,7 @@ const LeaderBoard = () => {
                       ))}
                     </div>
                     <div className="name group-name">
-                      Group {data?.group_no}
+                      {data?.name}
                     </div>
                   </div>
                   <div className="leader-card-footer">
@@ -341,7 +376,6 @@ const LeaderBoard = () => {
                       {data?.total_points_earned}
                     </span>
                   </div>
-                  {/* <div>Level: {data?.level || data?.individual_rank}</div> */}
                 </div>
               </div>
             ))}
@@ -361,19 +395,23 @@ const LeaderBoard = () => {
               >
                 <div className="row-left">
                   <div>{data?.group_rank}</div>
-                  <div className="name">Group {data?.group_no}</div>
+                  <div className="name">{data?.name}</div>
                   <div className="students-table-users-main">
                     (
                     {data?.team_members?.map((student) => (
-                      <div key={student._id}>
-                        <div>
-                          {student?.name}
-                          {student?.is_leader && (
-                            <span style={{ fontSize: '12px', color: '#f39c12', marginLeft: '5px' }}>
-                              👑
-                            </span>
-                          )}
-                        </div>
+                      <div key={student._id} style={{ display: 'inline-block', marginRight: 8 }}>
+                        <UserAvatar
+                          user={student}
+                          size="30"
+                          round={true}
+                          className="group-user"
+                        />
+                        <span>{student?.name}</span>
+                        {student?.is_leader && (
+                          <span style={{ fontSize: '12px', color: '#f39c12', marginLeft: '5px' }}>
+                            👑
+                          </span>
+                        )}
                       </div>
                     ))}
                     )

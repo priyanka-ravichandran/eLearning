@@ -2,6 +2,21 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+// Define groupAchievementSchema for subdocuments
+const groupAchievementSchema = new Schema(
+  {
+    student_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Student",
+    },
+    reason: String,
+    date: { type: Date, default: Date.now },
+    type: { type: String, enum: ["credit", "debit"] },
+    points: Number,
+  },
+  { _id: false }
+);
+
 // Group Schema
 var GroupSchema = new Schema(
   {
@@ -46,20 +61,7 @@ var GroupSchema = new Schema(
       type: Number,
       default: 1,
     },
-    achievements: [
-      {
-        student_id: {
-          type: Schema.Types.ObjectId,
-          ref: "Student",
-        },
-        reason: {
-          type: String,
-        },
-        date: { type: Date },
-        type: { type: String },
-        points: { type: Number },
-      },
-    ],
+    achievements: { type: [groupAchievementSchema], default: [] },
   },
   { timestamps: true }
 );

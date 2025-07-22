@@ -1,4 +1,5 @@
 const { Group } = require("../model/Group.model");
+const { Student } = require("../model/Student.model");
 const mongoose = require("mongoose");
 
 const findById = async (id) => {
@@ -30,46 +31,52 @@ const create_group = async (name, student_id_1, student_id_2, student_id_3) => {
 };
 
 const update_group_points = async (
-  student_id,
+  group_id,
   points,
   transaction_type,
   reason
 ) => {
   try {
-    // Check if a record with the given userId exists
-    let group = await Group.findOne({ team_members: student_id });
-    console.log("group", group);
-    
+    console.log("[update_group_points] called with", { group_id, points, transaction_type, reason });
+    // Find group by group_id
+    let group = await Group.findById(group_id);
     if (!group) {
-      throw new Error("Group not found for student");
+      console.error("[update_group_points] Group not found", group_id);
+      throw new Error("Group not found");
     }
-    
+    console.log("[update_group_points] Before update", { current_points: group.current_points, total_points_earned: group.total_points_earned });
     if (transaction_type === "credit") {
       group.total_points_earned += points;
       group.current_points += points;
     } else if (transaction_type === "debit") {
       group.current_points -= points;
     }
-
     group.achievements.unshift({
       reason: reason,
-      student_id: student_id,
+      student_id: undefined, // Not tied to a single student
       date: new Date(),
       type: transaction_type,
       points: points,
     });
-
     await group.save();
-    
-    // Auto-sync village level based on new points
+    // --- NEW: Update all group members' points as well ---
+    if (Array.isArray(group.team_members) && group.team_members.length > 0) {
+      const update = transaction_type === "credit"
+        ? { $inc: { current_points: points, total_points_earned: points } }
+        : { $inc: { current_points: -points } };
+      await Student.updateMany(
+        { _id: { $in: group.team_members } },
+        update
+      );
+    }
+    // --- END NEW ---
+    console.log("[update_group_points] After update", { current_points: group.current_points, total_points_earned: group.total_points_earned });
     await syncVillageLevel(group._id);
-
     await update_group_rank();
-
     return { success: true };
-  } catch (error) {
-    console.log(error);
-    throw new Error("Error updating the points");
+  } catch (err) {
+    console.error("[update_group_points] Error:", err);
+    return { success: false, error: err.message };
   }
 };
 

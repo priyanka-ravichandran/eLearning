@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useMyContext } from "../MyContextProvider";
 import { Wheel } from "react-custom-roulette";
+import Confetti from "react-confetti";
+import Modal from "react-modal";
+import { IoMdClose } from "react-icons/io";
 
 const API_BASE = "http://localhost:3000";
 
@@ -11,6 +14,7 @@ export default function GroupDailyChallenge() {
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [groupPoints, setGroupPoints] = useState(null);
 
   // wheel
   const wheelData = useMemo(
@@ -38,6 +42,8 @@ export default function GroupDailyChallenge() {
   const [showWheel, setShowWheel] = useState(false);
   const [mustSpin, setMustSpin] = useState(false);
   const [prizeIndex, setPrizeIndex] = useState(null);
+  const [showPrizeModal, setShowPrizeModal] = useState(false);
+  const [wonPoints, setWonPoints] = useState(0);
 
   const isPrizeValid =
     Number.isFinite(prizeIndex) && prizeIndex >= 0 && prizeIndex < wheelData.length;
@@ -49,6 +55,22 @@ export default function GroupDailyChallenge() {
     if (typeof g === "string") return g;
     return g._id || g.id || "";
   })();
+
+  // Move fetchGroupPoints outside useEffect so it can be reused
+  const fetchGroupPoints = async () => {
+    if (!groupId) return;
+    try {
+      const res = await fetch("/api/group/get_group_details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group_id: groupId })
+      });
+      const data = await res.json();
+      if (data.success && data.data?.group) {
+        setGroupPoints(data.data.group.current_points);
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     let alive = true;
@@ -93,6 +115,7 @@ export default function GroupDailyChallenge() {
 
     fetchChallenge();
     fetchSubmission();
+    fetchGroupPoints();
     return () => { alive = false; };
   }, [groupId]);
 
@@ -135,9 +158,29 @@ export default function GroupDailyChallenge() {
     setPrizeIndex(null);
   };
 
+  const handlePrize = async (points) => {
+    setWonPoints(points);
+    setShowPrizeModal(true);
+    // Award group points in backend
+    if (groupId && points > 0) {
+      await fetch(`${API_BASE}/daily-challenge/group/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, answer: result?.answer || "", prizePoints: points })
+      });
+      // Refresh group points after awarding
+      fetchGroupPoints();
+    }
+  };
+
   return (
     <div style={{ padding: 32 }}>
       <h2 style={{ color: "#2563eb", fontWeight: 700 }}>Group Daily Challenge</h2>
+      {groupPoints !== null && (
+        <div style={{ color: "#16a34a", fontWeight: 600, fontSize: 18, marginBottom: 8 }}>
+          Group Points: {groupPoints}
+        </div>
+      )}
       {!challenge ? (
         <p style={{ color: "#334155", fontSize: 18, marginTop: 16 }}>
           No challenge available for today.
@@ -191,7 +234,7 @@ export default function GroupDailyChallenge() {
                           data={wheelData}
                           onStopSpinning={() => {
                             setMustSpin(false);
-                            alert(`You won: ${wheelData[prizeIndex].option}`);
+                            handlePrize(wheelData[prizeIndex].option.split(" ")[0]);
                             resetWheel();
                           }}
                           backgroundColors={[
@@ -280,6 +323,48 @@ export default function GroupDailyChallenge() {
             )}
           </div>
         </>
+      )}
+      {showPrizeModal && (
+        <Modal
+          isOpen={showPrizeModal}
+          onRequestClose={() => setShowPrizeModal(false)}
+          style={{
+            overlay: { zIndex: 1000, background: "rgba(0,0,0,0.4)" },
+            content: {
+              maxWidth: 400,
+              margin: "auto",
+              borderRadius: 16,
+              padding: 32,
+              textAlign: "center",
+              position: "relative",
+              overflow: "visible"
+            }
+          }}
+          ariaHideApp={false}
+        >
+          <Confetti width={400} height={300} numberOfPieces={200} recycle={false} />
+          <button
+            onClick={() => setShowPrizeModal(false)}
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              background: "transparent",
+              border: "none",
+              fontSize: 28,
+              color: "#64748b",
+              cursor: "pointer",
+              zIndex: 2
+            }}
+            aria-label="Close"
+          >
+            <IoMdClose />
+          </button>
+          <h2 style={{ color: "#16a34a", marginBottom: 16, marginTop: 8 }}>🎉 Congratulations!</h2>
+          <p style={{ fontSize: 20, fontWeight: 600, color: "#2563eb" }}>
+            You won: <span style={{ color: "#e11d48" }}>{wonPoints} Points</span>
+          </p>
+        </Modal>
       )}
     </div>
   );

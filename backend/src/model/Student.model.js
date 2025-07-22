@@ -1,6 +1,16 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+const achievementSchema = new Schema(
+  {
+    reason: String,
+    date: { type: Date, default: Date.now },
+    type: { type: String, enum: ["credit", "debit"] },
+    points: Number,
+  },
+  { _id: false }
+);
+
 const StudentSchema = new Schema(
   {
     name: {
@@ -43,14 +53,7 @@ const StudentSchema = new Schema(
       type: Number,
       default: 0,
     },
-    achievements: [
-      {
-        reason: String,
-        date: Date,
-        type: String,
-        points: Number,
-      },
-    ],
+    achievements: { type: [achievementSchema], default: [] },
     points_breakdown: {
       llm_score_points: {
         type: Number,

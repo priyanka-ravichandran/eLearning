@@ -8,7 +8,8 @@ const {
   isGroupLeader,
   updateVillageLevel,
   update_group_points,
-  getVillageMilestones
+  getVillageMilestones,
+  get_group_leaderboard
 } = require("../controllers/group/group.controller");
 const { getGroupMembers } = require("../controllers/groupMembers.controller");
 const isAuth = require("../middleware/auth");
@@ -23,6 +24,7 @@ router.post("/is_group_leader", isGroupLeader);
 router.post("/update_village_level", updateVillageLevel);
 router.post("/update_group_points", update_group_points);
 router.post("/get_village_milestones", getVillageMilestones);
+router.post("/get_group_leaderboard", get_group_leaderboard);
 router.get("/members/:groupId", getGroupMembers);
 
 module.exports = router;

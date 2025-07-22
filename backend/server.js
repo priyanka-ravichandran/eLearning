@@ -11,6 +11,7 @@ const dailyChallengeRepo = require("./src/repository/daily_challenge.repository"
 const individualQuestionRepo = require("./src/repository/individual_daily_question.repository");
 const http = require('http');
 const axios = require('axios');
+const { scheduleWeeklyQuiz, scheduleDailyChallenge } = require('./quizScheduler');
 
 const app = express();
 
@@ -321,3 +322,7 @@ const port = process.env.PORT || 3000;
 server.listen(port, () => {
   console.log("Server is Running on " + port);
 });
+
+// Schedule weekly quiz and daily challenge at startup
+scheduleWeeklyQuiz();
+scheduleDailyChallenge();

@@ -2,6 +2,7 @@
 const { DailyChallenge } = require('../../model/DailyChallenge.model');
 const OpenAI = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { update_group_points } = require('../../repository/group.repository');
 
 async function postGroupDailyChallenge(subject) {
   // Generate challenge (replace with your logic)
@@ -38,7 +39,8 @@ async function getTodaysGroupDailyChallenge(req, res) {
 // Submit group answer for today's challenge
 async function submitGroupDailyChallengeAnswer(req, res) {
   try {
-    const { groupId, answer } = req.body;
+    const { groupId, answer, prizePoints } = req.body;
+    console.log("[GroupDailyChallenge] submitGroupDailyChallengeAnswer called", { groupId, answer, prizePoints });
     if (!groupId || answer === undefined) {
       return res.status(400).json({ success: false, message: 'Missing groupId or answer.' });
     }
@@ -54,7 +56,16 @@ async function submitGroupDailyChallengeAnswer(req, res) {
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No group daily challenge found for today.' });
     }
-    // Check if already answered by this group
+    // If prizePoints is present, allow awarding points even if already submitted
+    if (req.body.prizePoints) {
+      const points = parseInt(req.body.prizePoints, 10);
+      if (!isNaN(points) && points > 0) {
+        const updateResult = await update_group_points(groupId, points, 'credit', 'Group Daily Challenge Prize Wheel');
+        console.log("[GroupDailyChallenge] update_group_points result (prize only):", updateResult);
+        return res.json({ success: true, prizeAwarded: true });
+      }
+    }
+    // Otherwise, block if already submitted
     if (challenge.submissions && challenge.submissions[groupId]) {
       return res.status(403).json({ success: false, message: 'Group has already submitted an answer for today.' });
     }
@@ -78,8 +89,18 @@ async function submitGroupDailyChallengeAnswer(req, res) {
     if (!challenge.submissions) challenge.submissions = {};
     challenge.submissions[groupId] = { answer, isCorrect, analysis };
     await challenge.save();
+
+    // Award prize points if correct and points are provided (for first submission)
+    if (isCorrect && req.body.prizePoints) {
+      const points = parseInt(req.body.prizePoints, 10);
+      if (!isNaN(points) && points > 0) {
+        const updateResult = await update_group_points(groupId, points, 'credit', 'Group Daily Challenge Prize Wheel');
+        console.log("[GroupDailyChallenge] update_group_points result:", updateResult);
+      }
+    }
     res.json({ success: true, isCorrect, analysis });
   } catch (err) {
+    console.error("[GroupDailyChallenge] Error submitting answer:", err);
     res.status(500).json({ success: false, message: 'Error submitting answer.', error: err.message });
   }
 }

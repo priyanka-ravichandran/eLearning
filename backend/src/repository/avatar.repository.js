@@ -69,6 +69,15 @@ const AVATAR_SHOP_ITEMS = {
   },
 };
 
+// Define achievementSchema for subdocuments
+const mongoose = require('mongoose');
+const achievementSchema = new mongoose.Schema({
+  reason: String,
+  date: { type: Date, default: Date.now },
+  type: { type: String, enum: ['credit', 'debit'] },
+  points: Number
+}, { _id: false });
+
 // Get all shop items
 const getShopItems = () => {
   return AVATAR_SHOP_ITEMS;
@@ -121,6 +130,20 @@ const purchaseAvatarItem = async (studentId, category, itemKey) => {
   // Deduct points and add item to purchased items
   student.current_points -= item.price;
   student.purchased_items[category].push(itemKey);
+
+  // Defensive: ensure achievements is always an array
+  if (!Array.isArray(student.achievements)) {
+    console.log("student.achievements was not an array, value:", student.achievements);
+    student.achievements = [];
+  }
+
+  // Add achievement for avatar purchase
+  student.achievements.unshift({
+    reason: `Purchased avatar item: ${item.name || itemKey}`,
+    date: new Date(),
+    type: "credit",
+    points: 0
+  });
 
   await student.save();
   
